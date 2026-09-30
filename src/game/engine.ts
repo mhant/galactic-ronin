@@ -299,7 +299,7 @@ export class GameEngine {
 
     // 7. Enemy AI & Projectiles
     let isAnyEnemyEngaged = false;
-    const updatedEnemies = world.enemies.map((enemy) => {
+    const updatedEnemies = world.enemies.map((enemy, index) => {
       const distToPlayer = Math.hypot(newX - enemy.x, newY - enemy.y);
       let enemyRot = enemy.rotation;
       let evx = enemy.vx;
@@ -308,19 +308,73 @@ export class GameEngine {
 
       if (distToPlayer < enemy.aggroDistance) {
         isAnyEnemyEngaged = true;
-        // Turn towards player
+
+        // 1. Aim towards player with smooth turning
         const targetAngle = Math.atan2(newY - enemy.y, newX - enemy.x);
-        enemyRot = targetAngle;
+        const angleDiff = Math.atan2(Math.sin(targetAngle - enemyRot), Math.cos(targetAngle - enemyRot));
+        const turnSpeed = enemy.type === 'PIRATE_SCOUT' ? 3.4 : 2.0;
+        enemyRot += Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), turnSpeed * dt);
 
-        // Pursue
-        const speed = enemy.type === 'PIRATE_SCOUT' ? 140 : 90;
-        evx = Math.cos(enemyRot) * speed;
-        evy = Math.sin(enemyRot) * speed;
+        // 2. Dogfighting tactics & engagement distance
+        const isScout = enemy.type === 'PIRATE_SCOUT';
+        const preferredDist = isScout ? 210 : 300;
+        const maxSpeed = isScout ? 160 : 100;
+        const accelRate = 3.5;
 
-        // Attack if in range and facing
-        if (distToPlayer < 380 && fireCooldown <= 0) {
-          fireCooldown = enemy.type === 'PIRATE_SCOUT' ? 1.4 : 1.8;
-          const laserSpeed = 480;
+        // Strafe direction: alternate clockwise / counter-clockwise based on enemy index
+        const strafeSign = (index % 2 === 0) ? 1 : -1;
+
+        let desiredMoveAngle: number;
+        let desiredSpeed: number;
+
+        if (distToPlayer > preferredDist + 70) {
+          // Approach player
+          desiredMoveAngle = targetAngle;
+          desiredSpeed = maxSpeed;
+        } else if (distToPlayer < preferredDist - 60) {
+          // Too close: peel away / reverse thrusters
+          desiredMoveAngle = targetAngle + Math.PI + strafeSign * 0.4;
+          desiredSpeed = maxSpeed * 0.9;
+        } else {
+          // Sweet spot: strafe in tangential orbit while facing player
+          desiredMoveAngle = targetAngle + (Math.PI / 2) * strafeSign;
+          desiredSpeed = maxSpeed * 0.85;
+        }
+
+        // Smooth acceleration with inertia
+        const desiredVx = Math.cos(desiredMoveAngle) * desiredSpeed;
+        const desiredVy = Math.sin(desiredMoveAngle) * desiredSpeed;
+        evx += (desiredVx - evx) * Math.min(1, accelRate * dt);
+        evy += (desiredVy - evy) * Math.min(1, accelRate * dt);
+
+        // 3. Collision avoidance & repulsion from player
+        const MIN_PLAYER_DISTANCE = 95;
+        if (distToPlayer < MIN_PLAYER_DISTANCE && distToPlayer > 0.1) {
+          const pushAngle = Math.atan2(enemy.y - newY, enemy.x - newX);
+          const pushForce = (MIN_PLAYER_DISTANCE - distToPlayer) * 15;
+          evx += Math.cos(pushAngle) * pushForce * dt;
+          evy += Math.sin(pushAngle) * pushForce * dt;
+        }
+
+        // 4. Separation from other enemies (avoid stacking)
+        for (let j = 0; j < world.enemies.length; j++) {
+          if (j !== index) {
+            const other = world.enemies[j];
+            const distToOther = Math.hypot(enemy.x - other.x, enemy.y - other.y);
+            if (distToOther < 70 && distToOther > 0.1) {
+              const pushOtherAngle = Math.atan2(enemy.y - other.y, enemy.x - other.x);
+              const pushOtherForce = (70 - distToOther) * 8;
+              evx += Math.cos(pushOtherAngle) * pushOtherForce * dt;
+              evy += Math.sin(pushOtherAngle) * pushOtherForce * dt;
+            }
+          }
+        }
+
+        // 5. Fire weapon only when in range AND roughly aligned with player
+        const isFacingPlayer = Math.abs(angleDiff) < 0.35; // Within ~20 degrees
+        if (distToPlayer < 420 && isFacingPlayer && fireCooldown <= 0) {
+          fireCooldown = isScout ? 1.5 : 2.0;
+          const laserSpeed = 500;
           const ep: Projectile = {
             id: `p_enemy_${Date.now()}_${Math.random()}`,
             owner: 'ENEMY',
@@ -328,7 +382,7 @@ export class GameEngine {
             y: enemy.y + Math.sin(enemyRot) * 20,
             vx: Math.cos(enemyRot) * laserSpeed,
             vy: Math.sin(enemyRot) * laserSpeed,
-            damage: enemy.type === 'PIRATE_SCOUT' ? 12 : 22,
+            damage: isScout ? 12 : 22,
             lifetime: 1.5,
             color: '#FF3366',
           };
@@ -336,9 +390,9 @@ export class GameEngine {
           SoundManager.playLaser(true);
         }
       } else {
-        // Idle drift
-        evx *= 0.95;
-        evy *= 0.95;
+        // Idle drift when un-aggroed
+        evx *= Math.pow(0.92, dt);
+        evy *= Math.pow(0.92, dt);
       }
 
       return {
