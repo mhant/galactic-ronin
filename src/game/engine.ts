@@ -140,11 +140,15 @@ export class GameEngine {
     const state = useGameStore.getState();
     const { ship, world, player } = state;
 
-    // 1. Power modifiers
-    const thrustMultiplier = 0.6 + ship.enginePower * 0.25;
-    const turnSpeed = 2.5 + ship.enginePower * 0.35;
-    const fireCooldownRate = 0.45 - ship.weaponPower * 0.06; // 0.15s to 0.39s
-    const weaponDamage = 18 + ship.weaponPower * 6; // 24 to 48
+    // 1. Power & Upgrade modifiers
+    const engineLvl = ship.engineLevel || 1;
+    const weaponLvl = ship.weaponLevel || 1;
+    const thrustMultiplier = (0.6 + ship.enginePower * 0.25) * (1 + (engineLvl - 1) * 0.15);
+    const turnSpeed = (2.5 + ship.enginePower * 0.35) * (1 + (engineLvl - 1) * 0.12);
+    const fireCooldownRate = Math.max(0.12, (0.34 - ship.weaponPower * 0.04) * (1 - (weaponLvl - 1) * 0.08));
+    // Supercharged player laser damage:
+    // Base 45 + 12 per power bar, scaled by weapon level. Deals 70-130 damage per shot!
+    const weaponDamage = (45 + ship.weaponPower * 12) * (1 + (weaponLvl - 1) * 0.25);
 
     // 2. Player Input & Steering
     let rot = ship.rotation;
@@ -164,7 +168,7 @@ export class GameEngine {
 
     if ((this.keys['w'] || this.keys['arrowup']) && hasFuel) {
       isThrusting = true;
-      const accel = 320 * thrustMultiplier;
+      const accel = 340 * thrustMultiplier;
       vx += Math.cos(rot) * accel * dt;
       vy += Math.sin(rot) * accel * dt;
 
@@ -188,7 +192,7 @@ export class GameEngine {
     }
 
     // Speed clamp
-    const maxSpeed = 380 * thrustMultiplier;
+    const maxSpeed = 400 * thrustMultiplier;
     const currentSpeed = Math.hypot(vx, vy);
     if (currentSpeed > maxSpeed) {
       vx = (vx / currentSpeed) * maxSpeed;
@@ -209,7 +213,7 @@ export class GameEngine {
     if (this.keys[' '] || this.keys['space']) {
       if (this.playerShootCooldown <= 0) {
         this.playerShootCooldown = fireCooldownRate;
-        const projectileSpeed = 650;
+        const projectileSpeed = 820; // Fast plasma bolt
         const projVx = vx + Math.cos(rot) * projectileSpeed;
         const projVy = vy + Math.sin(rot) * projectileSpeed;
 
@@ -222,7 +226,7 @@ export class GameEngine {
           vy: projVy,
           damage: weaponDamage,
           lifetime: 1.8,
-          color: '#00F0FF',
+          color: weaponLvl >= 3 ? '#A855F7' : '#00F0FF',
         };
         state.addProjectile(proj);
         SoundManager.playLaser(false);
@@ -268,10 +272,10 @@ export class GameEngine {
         // Check hits on enemies
         for (const enemy of world.enemies) {
           const dist = Math.hypot(proj.x - enemy.x, proj.y - enemy.y);
-          if (dist < 28) {
+          if (dist < 38) {
             state.damageEnemy(enemy.id, proj.damage);
             proj.lifetime = 0; // Destroy projectile
-            this.spawnExplosionParticles(proj.x, proj.y, '#00F0FF', 8);
+            this.spawnExplosionParticles(proj.x, proj.y, '#00F0FF', 10);
             break;
           }
         }
@@ -850,48 +854,107 @@ export class GameEngine {
     ctx.translate(ship.x, ship.y);
     ctx.rotate(ship.rotation);
 
-    // Ronin Interceptor Chassis: Sleek dart-wing with cockpit canopy
+    const tier = ship.shipTier || 1;
+    const weaponLvl = ship.weaponLevel || 1;
+
     ctx.fillStyle = '#0f172a';
     ctx.strokeStyle = '#00F0FF';
     ctx.lineWidth = 2;
 
-    ctx.beginPath();
-    ctx.moveTo(22, 0); // Nose
-    ctx.lineTo(-14, -14); // Left wingtip
-    ctx.lineTo(-8, -6);
-    ctx.lineTo(-16, -6);
-    ctx.lineTo(-12, 0); // Center engine
-    ctx.lineTo(-16, 6);
-    ctx.lineTo(-8, 6);
-    ctx.lineTo(-14, 14); // Right wingtip
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+    if (tier === 1) {
+      // Tier 1: Agile Ronin Scout (Arrowhead dart)
+      ctx.beginPath();
+      ctx.moveTo(22, 0); // Nose
+      ctx.lineTo(-14, -14); // Left wingtip
+      ctx.lineTo(-8, -6);
+      ctx.lineTo(-16, -6);
+      ctx.lineTo(-12, 0); // Center engine
+      ctx.lineTo(-16, 6);
+      ctx.lineTo(-8, 6);
+      ctx.lineTo(-14, 14); // Right wingtip
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    } else if (tier === 2) {
+      // Tier 2: Heavy Frigate (Swept delta wings with forward canards)
+      ctx.beginPath();
+      ctx.moveTo(26, 0); // Long armored nose
+      ctx.lineTo(10, -10);
+      ctx.lineTo(-16, -20); // Wide wingtip
+      ctx.lineTo(-10, -8);
+      ctx.lineTo(-18, -8);
+      ctx.lineTo(-14, 0);
+      ctx.lineTo(-18, 8);
+      ctx.lineTo(-10, 8);
+      ctx.lineTo(-16, 20); // Right wide wingtip
+      ctx.lineTo(10, 10);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      // Tier 3: Battlecruiser (Reinforced dreadnought chassis with armored hull)
+      ctx.beginPath();
+      ctx.moveTo(30, -5);
+      ctx.lineTo(30, 5);
+      ctx.lineTo(12, 14);
+      ctx.lineTo(-18, 24);
+      ctx.lineTo(-12, 10);
+      ctx.lineTo(-22, 10);
+      ctx.lineTo(-16, 0);
+      ctx.lineTo(-22, -10);
+      ctx.lineTo(-12, -10);
+      ctx.lineTo(-18, -24);
+      ctx.lineTo(12, -14);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Additional hull armor strip
+      ctx.strokeStyle = '#38BDF8';
+      ctx.strokeRect(-6, -8, 14, 16);
+    }
 
     // Glowing cyan cockpit canopy
     ctx.fillStyle = '#00F0FF';
     ctx.beginPath();
-    ctx.ellipse(3, 0, 6, 3, 0, 0, Math.PI * 2);
+    ctx.ellipse(tier === 3 ? 6 : 3, 0, tier === 3 ? 8 : 6, tier === 3 ? 4 : 3, 0, 0, Math.PI * 2);
     ctx.fill();
+
+    // Twin plasma gun barrels if upgraded
+    if (weaponLvl >= 2) {
+      ctx.fillStyle = weaponLvl >= 4 ? '#A855F7' : '#00F0FF';
+      const wingDist = tier === 1 ? 12 : tier === 2 ? 16 : 20;
+      ctx.fillRect(-2, -wingDist - 2, 8, 3);
+      ctx.fillRect(-2, wingDist - 1, 8, 3);
+    }
 
     // Thruster engine flame if active
     if (ship.isThrusting) {
       ctx.fillStyle = '#FFDD00';
+      const exhaustBack = tier === 1 ? -12 : tier === 2 ? -15 : -18;
       ctx.beginPath();
-      ctx.moveTo(-12, -4);
-      ctx.lineTo(-24 - Math.random() * 8, 0);
-      ctx.lineTo(-12, 4);
+      ctx.moveTo(exhaustBack, -4);
+      ctx.lineTo(exhaustBack - 14 - Math.random() * 8, 0);
+      ctx.lineTo(exhaustBack, 4);
       ctx.closePath();
       ctx.fill();
+
+      if (tier >= 2) {
+        // Dual side flames
+        ctx.fillStyle = '#00F0FF';
+        ctx.fillRect(exhaustBack - 6, -10, 6, 2);
+        ctx.fillRect(exhaustBack - 6, 8, 6, 2);
+      }
     }
 
     // Active Shield Bubble
     if (ship.shield > 0) {
+      const shieldRadius = tier === 1 ? 26 : tier === 2 ? 32 : 38;
       const shieldAlpha = Math.min(0.5, (ship.shield / ship.maxShield) * 0.4);
       ctx.strokeStyle = `rgba(0, 240, 255, ${shieldAlpha})`;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(0, 0, 26, 0, Math.PI * 2);
+      ctx.arc(0, 0, shieldRadius, 0, Math.PI * 2);
       ctx.stroke();
     }
 

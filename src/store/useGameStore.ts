@@ -30,6 +30,11 @@ interface GameActions {
   refuelShip: (units: number) => boolean;
   repairShip: (points: number) => boolean;
   upgradeCargo: () => boolean;
+  upgradeWeapon: () => boolean;
+  upgradeShield: () => boolean;
+  upgradeEngine: () => boolean;
+  upgradeShipChassis: () => boolean;
+  buyFoodRations: (qty: number) => boolean;
 
   // Combat & Mining
   damagePlayer: (rawDamage: number) => void;
@@ -82,6 +87,10 @@ const getInitialState = () => ({
     weaponPower: INITIAL_POWER.weaponPower,
     shieldPower: INITIAL_POWER.shieldPower,
     enginePower: INITIAL_POWER.enginePower,
+    weaponLevel: 1,
+    shieldLevel: 1,
+    engineLevel: 1,
+    shipTier: 1,
     shield: 100,
     maxShield: 100,
     isThrusting: false,
@@ -376,6 +385,152 @@ export const useGameStore = create<GameState & GameActions>()(
             ...state.player,
             credits: state.player.credits - cost,
             cargoCapacity: state.player.cargoCapacity + 10,
+          },
+        }));
+        return true;
+      },
+
+      upgradeWeapon: () => {
+        const { ship, player } = get();
+        const currentLvl = ship.weaponLevel || 1;
+        if (currentLvl >= 5) return false;
+        const cost = currentLvl * 450;
+        if (player.credits < cost) return false;
+
+        SoundManager.playCash();
+        set((state) => ({
+          player: {
+            ...state.player,
+            credits: state.player.credits - cost,
+          },
+          ship: {
+            ...state.ship,
+            weaponLevel: currentLvl + 1,
+          },
+        }));
+        return true;
+      },
+
+      upgradeShield: () => {
+        const { ship, player } = get();
+        const currentLvl = ship.shieldLevel || 1;
+        if (currentLvl >= 5) return false;
+        const cost = currentLvl * 400;
+        if (player.credits < cost) return false;
+
+        const newMaxShield = 100 + currentLvl * 25;
+        SoundManager.playCash();
+        set((state) => ({
+          player: {
+            ...state.player,
+            credits: state.player.credits - cost,
+          },
+          ship: {
+            ...state.ship,
+            shieldLevel: currentLvl + 1,
+            maxShield: newMaxShield,
+            shield: newMaxShield,
+          },
+        }));
+        return true;
+      },
+
+      upgradeEngine: () => {
+        const { ship, player } = get();
+        const currentLvl = ship.engineLevel || 1;
+        if (currentLvl >= 5) return false;
+        const cost = currentLvl * 350;
+        if (player.credits < cost) return false;
+
+        SoundManager.playCash();
+        set((state) => ({
+          player: {
+            ...state.player,
+            credits: state.player.credits - cost,
+          },
+          ship: {
+            ...state.ship,
+            engineLevel: currentLvl + 1,
+          },
+        }));
+        return true;
+      },
+
+      upgradeShipChassis: () => {
+        const { ship, player } = get();
+        const currentTier = ship.shipTier || 1;
+        if (currentTier >= 3) return false;
+        const cost = currentTier === 1 ? 1600 : 3800;
+        if (player.credits < cost) return false;
+
+        const cargoBonus = currentTier === 1 ? 25 : 40;
+        const hullBonus = currentTier === 1 ? 50 : 80;
+        const fuelBonus = currentTier === 1 ? 30 : 50;
+
+        SoundManager.playCash();
+        set((state) => ({
+          player: {
+            ...state.player,
+            credits: state.player.credits - cost,
+            cargoCapacity: state.player.cargoCapacity + cargoBonus,
+            maxHull: state.player.maxHull + hullBonus,
+            hull: state.player.hull + hullBonus,
+            maxFuel: state.player.maxFuel + fuelBonus,
+            fuel: state.player.fuel + fuelBonus,
+          },
+          ship: {
+            ...state.ship,
+            shipTier: currentTier + 1,
+          },
+        }));
+        return true;
+      },
+
+      buyFoodRations: (qty) => {
+        const { player } = get();
+        const pricePerUnit = 35;
+        const totalCost = pricePerUnit * qty;
+        if (player.credits < totalCost) return false;
+
+        const currentCargo = player.inventory.reduce((sum, item) => sum + item.quantity, 0);
+        if (currentCargo + qty > player.cargoCapacity) return false;
+
+        const existing = player.inventory.find((i) => i.id === 'food_packs');
+        let updatedInventory: InventoryItem[];
+
+        if (existing) {
+          const totalQty = existing.quantity + qty;
+          const weightedCost = existing.quantity * existing.avgBuyPrice + totalCost;
+          updatedInventory = player.inventory.map((item) =>
+            item.id === 'food_packs'
+              ? { ...item, quantity: totalQty, avgBuyPrice: Math.round(weightedCost / totalQty) }
+              : item
+          );
+        } else {
+          updatedInventory = [
+            ...player.inventory,
+            {
+              id: 'food_packs',
+              name: 'Hydro-Ration Packs',
+              quantity: qty,
+              avgBuyPrice: pricePerUnit,
+              category: 'FOOD',
+            },
+          ];
+        }
+
+        SoundManager.playCash();
+        set((state) => ({
+          player: {
+            ...state.player,
+            credits: state.player.credits - totalCost,
+            inventory: updatedInventory,
+          },
+          market: {
+            ...state.market,
+            commodities: state.market.commodities.map((c) =>
+              c.id === 'food_packs' ? { ...c, quantity: Math.max(0, c.quantity - qty) } : c
+            ),
           },
         }));
         return true;

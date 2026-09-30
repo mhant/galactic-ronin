@@ -127,6 +127,10 @@ export interface ShipStats {
   weaponPower: number; // 1 to 5
   shieldPower: number; // 1 to 5
   enginePower: number; // 1 to 5
+  weaponLevel: number; // Upgrade tier 1-5
+  shieldLevel: number; // Upgrade tier 1-5
+  engineLevel: number; // Upgrade tier 1-5
+  shipTier: number;    // 1: Scout, 2: Heavy Frigate, 3: Battlecruiser
   shield: number;
   maxShield: number;
   isThrusting: boolean;
