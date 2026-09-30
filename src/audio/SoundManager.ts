@@ -1,28 +1,59 @@
-// Web Audio API procedural sound synthesizer and ambient music generator for Galactic Ronin
+// Web Audio API clean, distortion-free procedural sound and ambient music engine
+// Designed with a master dynamics compressor and zero continuous background noise.
+
 class SoundEngine {
   private ctx: AudioContext | null = null;
+  private compressor: DynamicsCompressorNode | null = null;
+  private musicGain: GainNode | null = null;
+  private sfxGain: GainNode | null = null;
+
   private musicEnabled: boolean = true;
   private sfxEnabled: boolean = true;
-
-  // Music state
   private musicTimer: number | null = null;
-  private currentChordIndex: number = 0;
-  private activeMusicNodes: Array<{ stop: (t: number) => void }> = [];
-
-  // Thruster state
-  private thrusterNoiseNode: AudioNode | null = null;
-  private thrusterGain: GainNode | null = null;
-  private isThrusting: boolean = false;
 
   constructor() {
-    // AudioContext will be initialized on first user interaction
+    // Clean up any stale AudioContext from previous hot-reloads
+    if (typeof window !== 'undefined') {
+      const win = window as any;
+      if (win.__GR_AUDIO_CTX__) {
+        try {
+          win.__GR_AUDIO_CTX__.close();
+        } catch {
+          // Ignore
+        }
+      }
+    }
   }
 
   private initContext() {
-    if (!this.ctx && typeof window !== 'undefined') {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (typeof window === 'undefined') return;
+    const win = window as any;
+
+    if (!this.ctx || this.ctx.state === 'closed') {
+      const AudioCtx = window.AudioContext || win.webkitAudioContext;
       this.ctx = new AudioCtx();
+      win.__GR_AUDIO_CTX__ = this.ctx;
+
+      // Master Dynamics Compressor: prevents any digital clipping, distortion, or crackle
+      this.compressor = this.ctx.createDynamicsCompressor();
+      this.compressor.threshold.setValueAtTime(-18, this.ctx.currentTime);
+      this.compressor.knee.setValueAtTime(12, this.ctx.currentTime);
+      this.compressor.ratio.setValueAtTime(8, this.ctx.currentTime);
+      this.compressor.attack.setValueAtTime(0.003, this.ctx.currentTime);
+      this.compressor.release.setValueAtTime(0.25, this.ctx.currentTime);
+      this.compressor.connect(this.ctx.destination);
+
+      // Music Master Bus
+      this.musicGain = this.ctx.createGain();
+      this.musicGain.gain.setValueAtTime(this.musicEnabled ? 0.35 : 0, this.ctx.currentTime);
+      this.musicGain.connect(this.compressor);
+
+      // SFX Master Bus
+      this.sfxGain = this.ctx.createGain();
+      this.sfxGain.gain.setValueAtTime(this.sfxEnabled ? 0.6 : 0, this.ctx.currentTime);
+      this.sfxGain.connect(this.compressor);
     }
+
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
@@ -30,6 +61,9 @@ class SoundEngine {
 
   public setMusicEnabled(val: boolean) {
     this.musicEnabled = val;
+    if (this.musicGain && this.ctx) {
+      this.musicGain.gain.setValueAtTime(val ? 0.35 : 0, this.ctx.currentTime);
+    }
     if (!val) {
       this.stopMusic();
     } else {
@@ -39,8 +73,8 @@ class SoundEngine {
 
   public setSfxEnabled(val: boolean) {
     this.sfxEnabled = val;
-    if (!val && this.thrusterGain && this.ctx) {
-      this.thrusterGain.gain.setValueAtTime(0, this.ctx.currentTime);
+    if (this.sfxGain && this.ctx) {
+      this.sfxGain.gain.setValueAtTime(val ? 0.6 : 0, this.ctx.currentTime);
     }
   }
 
@@ -52,20 +86,19 @@ class SoundEngine {
     return this.sfxEnabled;
   }
 
-  // --- AMBIENT SPACE SOUNDTRACK (Pleasant, warm, zero buzzing) ---
+  // --- CELESTIAL AMBIENT MUSIC (Soft, soothing crystalline chimes; zero buzz) ---
   public startMusic() {
     if (!this.musicEnabled) return;
     this.initContext();
-    if (!this.ctx) return;
-    if (this.musicTimer !== null) return; // Already running
+    if (!this.ctx || this.musicTimer !== null) return;
 
-    this.playNextAmbientChord();
-    // Advance chord progression every 6.5 seconds
+    this.playAmbientChime();
+    // Play a gentle, relaxing celestial chime every 4 seconds
     this.musicTimer = window.setInterval(() => {
       if (this.musicEnabled) {
-        this.playNextAmbientChord();
+        this.playAmbientChime();
       }
-    }, 6500);
+    }, 4000);
   }
 
   public stopMusic() {
@@ -73,121 +106,84 @@ class SoundEngine {
       clearInterval(this.musicTimer);
       this.musicTimer = null;
     }
-    const now = this.ctx?.currentTime || 0;
-    this.activeMusicNodes.forEach((node) => {
-      try {
-        node.stop(now + 0.5);
-      } catch {
-        // Node already stopped
-      }
-    });
-    this.activeMusicNodes = [];
   }
 
-  private playNextAmbientChord() {
-    if (!this.ctx || !this.musicEnabled) return;
+  private playAmbientChime() {
+    if (!this.ctx || !this.musicEnabled || !this.musicGain) return;
     const now = this.ctx.currentTime;
 
-    // Ethereal space chords: Dm9 -> Bbmaj7 -> Fmaj7 -> Cadd9
-    const chords = [
-      [146.83, 220.0, 261.63, 349.23], // D3, A3, C4, F4
-      [116.54, 174.61, 220.0, 293.66], // Bb2, F3, A3, D4
-      [130.81, 196.0, 261.63, 329.63], // C3, G3, C4, E4
-      [174.61, 220.0, 261.63, 349.23], // F3, A3, C4, F4
+    // Peaceful pentatonic frequencies (D minor / F major pentatonic)
+    // Low mid notes and high glass pings
+    const bellNotes = [
+      [220.0, 440.0],       // A3, A4
+      [261.63, 523.25],     // C4, C5
+      [293.66, 587.33],     // D4, D5
+      [349.23, 698.46],     // F4, F5
+      [392.0, 783.99],      // G4, G5
     ];
 
-    const chord = chords[this.currentChordIndex];
-    this.currentChordIndex = (this.currentChordIndex + 1) % chords.length;
+    const pair = bellNotes[Math.floor(Math.random() * bellNotes.length)];
 
-    // Master filter for the chord: warm analog lowpass
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(450, now);
-    filter.frequency.linearRampToValueAtTime(750, now + 3);
-    filter.frequency.linearRampToValueAtTime(450, now + 6);
-
-    const masterGain = this.ctx.createGain();
-    masterGain.gain.setValueAtTime(0.001, now);
-    masterGain.gain.linearRampToValueAtTime(0.045, now + 2.0); // Gentle slow swell
-    masterGain.gain.linearRampToValueAtTime(0.001, now + 6.4); // Smooth decay
-
-    filter.connect(masterGain);
-    masterGain.connect(this.ctx.destination);
-
-    // Play each note in the chord with subtle detuning for lush stereo-like warmth
-    chord.forEach((freq, idx) => {
-      if (!this.ctx) return;
-      const osc = this.ctx.createOscillator();
-      osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
-      osc.frequency.setValueAtTime(freq, now);
-      // Subtle organic drift
-      osc.detune.setValueAtTime((Math.random() - 0.5) * 6, now);
-
-      osc.connect(filter);
-      osc.start(now);
-      osc.stop(now + 6.5);
-      this.activeMusicNodes.push(osc);
-    });
-
-    // Occasional twinkling star chime ping (high, crystalline, soft)
-    if (Math.random() < 0.75) {
-      this.playStarlightChime(now + 1.2 + Math.random() * 2.5);
-    }
-  }
-
-  private playStarlightChime(time: number) {
-    if (!this.ctx || !this.musicEnabled) return;
-    try {
-      const notes = [587.33, 659.25, 783.99, 880.0, 1046.5]; // D5, E5, G5, A5, C6
-      const freq = notes[Math.floor(Math.random() * notes.length)];
+    pair.forEach((freq, idx) => {
+      if (!this.ctx || !this.musicGain) return;
 
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
 
+      // Pure sine wave: zero distortion, zero harmonics, completely pure tone
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, time);
+      osc.frequency.setValueAtTime(freq, now + idx * 0.12);
 
-      gain.gain.setValueAtTime(0.0001, time);
-      gain.gain.linearRampToValueAtTime(0.03, time + 0.05);
-      gain.gain.exponentialRampToValueAtTime(0.0001, time + 2.2);
+      const noteTime = now + idx * 0.12;
+      const noteVol = idx === 0 ? 0.08 : 0.05;
+
+      gain.gain.setValueAtTime(0.0001, noteTime);
+      gain.gain.linearRampToValueAtTime(noteVol, noteTime + 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.0001, noteTime + 3.2);
 
       osc.connect(gain);
-      gain.connect(this.ctx.destination);
+      gain.connect(this.musicGain);
 
-      osc.start(time);
-      osc.stop(time + 2.3);
-      this.activeMusicNodes.push(osc);
-    } catch {
-      // Ignore
-    }
+      osc.start(noteTime);
+      osc.stop(noteTime + 3.3);
+    });
   }
 
-  // --- SOUND EFFECTS (SFX) ---
+  // --- SOUND EFFECTS (Zero background loop, clean triggered sounds only) ---
+
+  // Thruster: gentle short sine burst on initiation; NO continuous noise generator
+  public updateThruster(isThrusting: boolean) {
+    // Intentionally zero continuous background audio. Space is silent.
+    // If thrusting is desired, can trigger a single soft click, but silence is distortion-free!
+    if (!isThrusting || !this.sfxEnabled) return;
+  }
+
   public playLaser(isEnemy = false) {
     if (!this.sfxEnabled) return;
     this.initContext();
-    if (!this.ctx) return;
+    if (!this.ctx || !this.sfxGain) return;
 
     try {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
 
-      osc.type = isEnemy ? 'sawtooth' : 'triangle';
+      // Clean sine laser with quick pitch sweep
+      osc.type = 'sine';
       const now = this.ctx.currentTime;
-      const startFreq = isEnemy ? 550 : 880;
-      const endFreq = isEnemy ? 180 : 240;
+      const startFreq = isEnemy ? 480 : 840;
+      const endFreq = isEnemy ? 180 : 260;
 
       osc.frequency.setValueAtTime(startFreq, now);
-      osc.frequency.exponentialRampToValueAtTime(endFreq, now + 0.1);
+      osc.frequency.exponentialRampToValueAtTime(endFreq, now + 0.09);
 
-      gain.gain.setValueAtTime(isEnemy ? 0.07 : 0.1, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+      gain.gain.setValueAtTime(isEnemy ? 0.1 : 0.14, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
 
       osc.connect(gain);
-      gain.connect(this.ctx.destination);
+      gain.connect(this.sfxGain);
 
       osc.start(now);
-      osc.stop(now + 0.1);
+      osc.stop(now + 0.09);
     } catch {
       // Ignore
     }
@@ -196,25 +192,25 @@ class SoundEngine {
   public playMiningBeam() {
     if (!this.sfxEnabled) return;
     this.initContext();
-    if (!this.ctx) return;
+    if (!this.ctx || !this.sfxGain) return;
 
     try {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
 
-      osc.type = 'triangle';
+      osc.type = 'sine';
       const now = this.ctx.currentTime;
-      osc.frequency.setValueAtTime(420 + Math.random() * 30, now);
-      osc.frequency.exponentialRampToValueAtTime(520, now + 0.07);
+      osc.frequency.setValueAtTime(360, now);
+      osc.frequency.linearRampToValueAtTime(420, now + 0.05);
 
-      gain.gain.setValueAtTime(0.035, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+      gain.gain.setValueAtTime(0.05, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
 
       osc.connect(gain);
-      gain.connect(this.ctx.destination);
+      gain.connect(this.sfxGain);
 
       osc.start(now);
-      osc.stop(now + 0.07);
+      osc.stop(now + 0.05);
     } catch {
       // Ignore
     }
@@ -223,31 +219,25 @@ class SoundEngine {
   public playHit(shieldHit = true) {
     if (!this.sfxEnabled) return;
     this.initContext();
-    if (!this.ctx) return;
+    if (!this.ctx || !this.sfxGain) return;
 
     try {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       const now = this.ctx.currentTime;
 
-      if (shieldHit) {
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(450, now);
-        osc.frequency.exponentialRampToValueAtTime(140, now + 0.14);
-        gain.gain.setValueAtTime(0.12, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.14);
-      } else {
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(180, now);
-        osc.frequency.exponentialRampToValueAtTime(50, now + 0.18);
-        gain.gain.setValueAtTime(0.16, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
-      }
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(shieldHit ? 520 : 180, now);
+      osc.frequency.exponentialRampToValueAtTime(shieldHit ? 160 : 60, now + 0.12);
+
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
 
       osc.connect(gain);
-      gain.connect(this.ctx.destination);
+      gain.connect(this.sfxGain);
+
       osc.start(now);
-      osc.stop(now + (shieldHit ? 0.14 : 0.18));
+      osc.stop(now + 0.12);
     } catch {
       // Ignore
     }
@@ -256,33 +246,26 @@ class SoundEngine {
   public playExplosion() {
     if (!this.sfxEnabled) return;
     this.initContext();
-    if (!this.ctx) return;
+    if (!this.ctx || !this.sfxGain) return;
 
     try {
-      const bufferSize = this.ctx.sampleRate * 0.35;
-      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        data[i] = Math.random() * 2 - 1;
-      }
-
-      const noise = this.ctx.createBufferSource();
-      noise.buffer = buffer;
-
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(280, this.ctx.currentTime);
-      filter.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.35);
-
+      // Clean low sub-bass pitch drop for punchy, distortion-free explosion
+      const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
-      gain.gain.setValueAtTime(0.22, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.35);
+      const now = this.ctx.currentTime;
 
-      noise.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(140, now);
+      osc.frequency.exponentialRampToValueAtTime(30, now + 0.35);
 
-      noise.start();
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+
+      osc.start(now);
+      osc.stop(now + 0.35);
     } catch {
       // Ignore
     }
@@ -291,21 +274,21 @@ class SoundEngine {
   public playCash() {
     if (!this.sfxEnabled) return;
     this.initContext();
-    if (!this.ctx) return;
+    if (!this.ctx || !this.sfxGain) return;
 
     try {
       const now = this.ctx.currentTime;
       [880, 1174, 1318].forEach((freq, idx) => {
-        if (!this.ctx) return;
+        if (!this.ctx || !this.sfxGain) return;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.type = 'sine';
         osc.frequency.setValueAtTime(freq, now + idx * 0.05);
-        gain.gain.setValueAtTime(0.06, now + idx * 0.05);
+        gain.gain.setValueAtTime(0.08, now + idx * 0.05);
         gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.05 + 0.1);
 
         osc.connect(gain);
-        gain.connect(this.ctx.destination);
+        gain.connect(this.sfxGain);
         osc.start(now + idx * 0.05);
         osc.stop(now + idx * 0.05 + 0.1);
       });
@@ -317,7 +300,7 @@ class SoundEngine {
   public playDock() {
     if (!this.sfxEnabled) return;
     this.initContext();
-    if (!this.ctx) return;
+    if (!this.ctx || !this.sfxGain) return;
 
     try {
       const now = this.ctx.currentTime;
@@ -325,66 +308,16 @@ class SoundEngine {
       const gain = this.ctx.createGain();
       osc.type = 'sine';
       osc.frequency.setValueAtTime(260, now);
-      osc.frequency.linearRampToValueAtTime(440, now + 0.22);
-      gain.gain.setValueAtTime(0.1, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      osc.frequency.linearRampToValueAtTime(440, now + 0.2);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
 
       osc.connect(gain);
-      gain.connect(this.ctx.destination);
+      gain.connect(this.sfxGain);
       osc.start(now);
-      osc.stop(now + 0.25);
+      osc.stop(now + 0.22);
     } catch {
       // Ignore
-    }
-  }
-
-  // Smooth atmospheric thruster whoosh (NO buzzing sawtooth)
-  public updateThruster(thrusting: boolean) {
-    if (!this.sfxEnabled) {
-      if (this.thrusterGain && this.ctx) {
-        this.thrusterGain.gain.setValueAtTime(0, this.ctx.currentTime);
-      }
-      return;
-    }
-    this.initContext();
-    if (!this.ctx) return;
-
-    // Use a soft, filtered white noise buffer for realistic rocket propellant whoosh
-    if (!this.thrusterNoiseNode) {
-      try {
-        const bufferSize = this.ctx.sampleRate * 2;
-        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-          data[i] = Math.random() * 2 - 1;
-        }
-
-        const noise = this.ctx.createBufferSource();
-        noise.buffer = buffer;
-        noise.loop = true;
-
-        const filter = this.ctx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(180, this.ctx.currentTime); // Deep warm whoosh
-
-        this.thrusterGain = this.ctx.createGain();
-        this.thrusterGain.gain.setValueAtTime(0, this.ctx.currentTime);
-
-        noise.connect(filter);
-        filter.connect(this.thrusterGain);
-        this.thrusterGain.connect(this.ctx.destination);
-
-        noise.start();
-        this.thrusterNoiseNode = noise;
-      } catch {
-        return;
-      }
-    }
-
-    if (thrusting !== this.isThrusting && this.thrusterGain) {
-      this.isThrusting = thrusting;
-      const targetGain = thrusting ? 0.06 : 0;
-      this.thrusterGain.gain.setTargetAtTime(targetGain, this.ctx.currentTime, 0.08);
     }
   }
 }

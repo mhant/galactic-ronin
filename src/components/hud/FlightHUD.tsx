@@ -20,8 +20,10 @@ export const FlightHUD: React.FC = () => {
   const ship = useGameStore((state) => state.ship);
   const world = useGameStore((state) => state.world);
   const combatAlert = useGameStore((state) => state.combatAlert);
+  const soundEnabled = useGameStore((state) => state.soundEnabled);
   const musicEnabled = useGameStore((state) => state.musicEnabled);
   const sfxEnabled = useGameStore((state) => state.sfxEnabled);
+  const toggleSound = useGameStore((state) => state.toggleSound);
   const toggleMusic = useGameStore((state) => state.toggleMusic);
   const toggleSFX = useGameStore((state) => state.toggleSFX);
 
@@ -58,8 +60,8 @@ export const FlightHUD: React.FC = () => {
           </div>
         )}
 
-        {/* Resources: Credits & Cargo & Sound */}
-        <div className="flex items-center space-x-3">
+        {/* Resources: Credits & Cargo & Sound Controls */}
+        <div className="flex items-center space-x-2.5">
           {/* Cargo Status */}
           <div className="bg-slate-900/80 backdrop-blur-md border border-cyan-500/30 px-3 py-2 rounded-lg text-xs shadow-lg flex items-center space-x-2">
             <Package className="w-4 h-4 text-cyan-400" />
@@ -108,6 +110,20 @@ export const FlightHUD: React.FC = () => {
           >
             {sfxEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
             <span className="hidden sm:inline">{sfxEnabled ? 'SFX: ON' : 'SFX: OFF'}</span>
+          </button>
+
+          {/* Master Mute All Toggle */}
+          <button
+            onClick={toggleSound}
+            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all shadow-md active:scale-95 ${
+              soundEnabled
+                ? 'bg-slate-900/80 border-slate-700 text-slate-300 hover:bg-slate-800'
+                : 'bg-rose-950/80 border-rose-500/50 text-rose-300 hover:bg-rose-900/80'
+            }`}
+            title="Master Audio Mute"
+          >
+            {soundEnabled ? <Volume2 className="w-3.5 h-3.5 text-emerald-400" /> : <VolumeX className="w-3.5 h-3.5 text-rose-400" />}
+            <span className="hidden md:inline">{soundEnabled ? 'MUTE' : 'UNMUTE'}</span>
           </button>
         </div>
       </div>
