@@ -29,6 +29,7 @@ interface GameActions {
   undock: () => void;
   buyCommodity: (commodityId: string, quantity: number) => boolean;
   sellCommodity: (commodityId: string, quantity: number) => boolean;
+  sellAllCargo: () => number;
   refuelShip: (units: number) => boolean;
   repairShip: (points: number) => boolean;
   upgradeCargo: () => boolean;
@@ -356,6 +357,32 @@ export const useGameStore = create<GameState & GameActions>()(
         }));
 
         return true;
+      },
+
+      sellAllCargo: () => {
+        const { player, market } = get();
+        if (player.inventory.length === 0) return 0;
+
+        let totalEarnings = 0;
+        const marketMap = new Map(market.commodities.map((c) => [c.id, c]));
+
+        player.inventory.forEach((item) => {
+          const mItem = marketMap.get(item.id);
+          const price = mItem ? mItem.sellPrice : 25;
+          totalEarnings += price * item.quantity;
+        });
+
+        if (totalEarnings > 0) {
+          SoundManager.playCash();
+          set((state) => ({
+            player: {
+              ...state.player,
+              credits: state.player.credits + totalEarnings,
+              inventory: [],
+            },
+          }));
+        }
+        return totalEarnings;
       },
 
       refuelShip: (units) => {
