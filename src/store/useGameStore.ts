@@ -135,7 +135,18 @@ export const useGameStore = create<GameState & GameActions>()(
           fresh.gameStatus = 'EXPLORING';
           set(fresh);
         } else {
-          set({ gameStatus: 'EXPLORING' });
+          // Balance existing saved enemies to fragile health
+          const balancedEnemies = get().world.enemies.map((e) => ({
+            ...e,
+            hull: e.type === 'PIRATE_SCOUT' ? Math.min(e.hull, 18) : Math.min(e.hull, 35),
+            maxHull: e.type === 'PIRATE_SCOUT' ? 18 : 35,
+            shield: 0,
+            maxShield: 0,
+          }));
+          set((state) => ({
+            gameStatus: 'EXPLORING',
+            world: { ...state.world, enemies: balancedEnemies },
+          }));
         }
       },
 

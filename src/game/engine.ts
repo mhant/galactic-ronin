@@ -213,9 +213,31 @@ export class GameEngine {
     if (this.keys[' '] || this.keys['space']) {
       if (this.playerShootCooldown <= 0) {
         this.playerShootCooldown = fireCooldownRate;
-        const projectileSpeed = 820; // Fast plasma bolt
-        const projVx = vx + Math.cos(rot) * projectileSpeed;
-        const projVy = vy + Math.sin(rot) * projectileSpeed;
+        const projectileSpeed = 850; // Fast plasma bolt
+
+        // Magnetic Aim Assist: lead towards nearby hostile if aiming in their direction
+        let fireAngle = rot;
+        const liveEnemies = useGameStore.getState().world.enemies;
+        let bestTarget: Enemy | null = null;
+        let smallestDiff = 0.55; // ~32 degree cone
+
+        for (const e of liveEnemies) {
+          const angleToEnemy = Math.atan2(e.y - newY, e.x - newX);
+          const diff = Math.abs(Math.atan2(Math.sin(angleToEnemy - rot), Math.cos(angleToEnemy - rot)));
+          const dist = Math.hypot(e.x - newX, e.y - newY);
+          if (dist < 850 && diff < smallestDiff) {
+            smallestDiff = diff;
+            bestTarget = e;
+          }
+        }
+
+        if (bestTarget) {
+          // Snap laser directly to target
+          fireAngle = Math.atan2(bestTarget.y - newY, bestTarget.x - newX);
+        }
+
+        const projVx = vx + Math.cos(fireAngle) * projectileSpeed;
+        const projVy = vy + Math.sin(fireAngle) * projectileSpeed;
 
         const proj: Projectile = {
           id: `p_player_${Date.now()}_${Math.random()}`,
@@ -269,13 +291,14 @@ export class GameEngine {
 
     for (const proj of activeProjectiles) {
       if (proj.owner === 'PLAYER') {
-        // Check hits on enemies
-        for (const enemy of world.enemies) {
+        // ALWAYS use fresh live enemies from store so damage is never overwritten!
+        const currentEnemies = useGameStore.getState().world.enemies;
+        for (const enemy of currentEnemies) {
           const dist = Math.hypot(proj.x - enemy.x, proj.y - enemy.y);
-          if (dist < 38) {
+          if (dist < 46) {
             state.damageEnemy(enemy.id, proj.damage);
             proj.lifetime = 0; // Destroy projectile
-            this.spawnExplosionParticles(proj.x, proj.y, '#00F0FF', 10);
+            this.spawnExplosionParticles(proj.x, proj.y, '#00F0FF', 14);
             break;
           }
         }
@@ -301,9 +324,10 @@ export class GameEngine {
       }
     }
 
-    // 7. Enemy AI & Projectiles
+    // 7. Enemy AI & Projectiles (ALWAYS use fresh surviving enemies from store!)
     let isAnyEnemyEngaged = false;
-    const updatedEnemies = world.enemies.map((enemy, index) => {
+    const survivingEnemies = useGameStore.getState().world.enemies;
+    const updatedEnemies = survivingEnemies.map((enemy, index) => {
       const distToPlayer = Math.hypot(newX - enemy.x, newY - enemy.y);
       let enemyRot = enemy.rotation;
       let evx = enemy.vx;
@@ -805,7 +829,8 @@ export class GameEngine {
 
       // Health bar above enemy
       const barWidth = 32;
-      const hpPct = enemy.hull / enemy.maxHull;
+      const maxH = enemy.maxHull || 20;
+      const hpPct = Math.max(0, Math.min(1, enemy.hull / maxH));
       ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
       ctx.fillRect(enemy.x - barWidth / 2, enemy.y - 26, barWidth, 3);
       ctx.fillStyle = '#EF4444';
