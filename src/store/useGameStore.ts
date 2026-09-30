@@ -17,6 +17,8 @@ interface GameActions {
   startGame: (isNew?: boolean) => void;
   setGameStatus: (status: GameState['gameStatus']) => void;
   toggleSound: () => void;
+  toggleMusic: () => void;
+  toggleSFX: () => void;
   updateShipPhysics: (updates: Partial<ShipStats>) => void;
   distributePower: (system: 'weapon' | 'shield' | 'engine', delta: number) => void;
   consumeFuel: (amount: number) => boolean;
@@ -111,6 +113,8 @@ const getInitialState = () => ({
   },
   gameStatus: 'MENU' as GameState['gameStatus'],
   soundEnabled: true,
+  musicEnabled: true,
+  sfxEnabled: true,
   combatAlert: false,
 });
 
@@ -120,7 +124,7 @@ export const useGameStore = create<GameState & GameActions>()(
       ...getInitialState(),
 
       startGame: (isNew = false) => {
-        SoundManager.startAmbient();
+        SoundManager.startMusic();
         if (isNew) {
           const fresh = getInitialState();
           const sectorData = generateSector('Sector-01');
@@ -139,8 +143,21 @@ export const useGameStore = create<GameState & GameActions>()(
 
       toggleSound: () => {
         const next = !get().soundEnabled;
-        SoundManager.setEnabled(next);
-        set({ soundEnabled: next });
+        SoundManager.setMusicEnabled(next);
+        SoundManager.setSfxEnabled(next);
+        set({ soundEnabled: next, musicEnabled: next, sfxEnabled: next });
+      },
+
+      toggleMusic: () => {
+        const next = !get().musicEnabled;
+        SoundManager.setMusicEnabled(next);
+        set({ musicEnabled: next });
+      },
+
+      toggleSFX: () => {
+        const next = !get().sfxEnabled;
+        SoundManager.setSfxEnabled(next);
+        set({ sfxEnabled: next });
       },
 
       updateShipPhysics: (updates) => {
@@ -841,6 +858,8 @@ export const useGameStore = create<GameState & GameActions>()(
           floatingLoot: state.world.floatingLoot,
         },
         soundEnabled: state.soundEnabled,
+        musicEnabled: state.musicEnabled,
+        sfxEnabled: state.sfxEnabled,
       }),
     }
   )

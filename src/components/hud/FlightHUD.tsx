@@ -10,6 +10,7 @@ import {
   Package,
   Volume2,
   VolumeX,
+  Music,
   AlertTriangle,
   Radio,
 } from 'lucide-react';
@@ -19,8 +20,10 @@ export const FlightHUD: React.FC = () => {
   const ship = useGameStore((state) => state.ship);
   const world = useGameStore((state) => state.world);
   const combatAlert = useGameStore((state) => state.combatAlert);
-  const soundEnabled = useGameStore((state) => state.soundEnabled);
-  const toggleSound = useGameStore((state) => state.toggleSound);
+  const musicEnabled = useGameStore((state) => state.musicEnabled);
+  const sfxEnabled = useGameStore((state) => state.sfxEnabled);
+  const toggleMusic = useGameStore((state) => state.toggleMusic);
+  const toggleSFX = useGameStore((state) => state.toggleSFX);
 
   const speed = Math.round(Math.hypot(ship.vx, ship.vy));
   const currentCargo = player.inventory.reduce((sum, item) => sum + item.quantity, 0);
@@ -79,13 +82,32 @@ export const FlightHUD: React.FC = () => {
             </div>
           </div>
 
-          {/* Audio toggle */}
+          {/* Music Toggle */}
           <button
-            onClick={toggleSound}
-            className="bg-slate-900/80 hover:bg-slate-800 border border-cyan-500/30 p-2 rounded-lg text-cyan-400 transition-colors shadow-lg active:scale-95"
-            title="Toggle Sound"
+            onClick={toggleMusic}
+            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all shadow-md active:scale-95 ${
+              musicEnabled
+                ? 'bg-purple-950/80 border-purple-500/50 text-purple-300 hover:bg-purple-900/80 shadow-glow-purple'
+                : 'bg-slate-900/80 border-slate-700 text-slate-500 hover:bg-slate-800'
+            }`}
+            title="Toggle Ambient Music"
           >
-            {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-slate-500" />}
+            <Music className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{musicEnabled ? 'MUSIC: ON' : 'MUSIC: OFF'}</span>
+          </button>
+
+          {/* SFX Toggle */}
+          <button
+            onClick={toggleSFX}
+            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all shadow-md active:scale-95 ${
+              sfxEnabled
+                ? 'bg-cyan-950/80 border-cyan-500/50 text-cyan-300 hover:bg-cyan-900/80 shadow-glow-cyan'
+                : 'bg-slate-900/80 border-slate-700 text-slate-500 hover:bg-slate-800'
+            }`}
+            title="Toggle Sound Effects"
+          >
+            {sfxEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{sfxEnabled ? 'SFX: ON' : 'SFX: OFF'}</span>
           </button>
         </div>
       </div>

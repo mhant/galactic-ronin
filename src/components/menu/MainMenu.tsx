@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../../store/useGameStore';
-import { Rocket, RotateCcw, HelpCircle, Volume2, VolumeX } from 'lucide-react';
+import { Rocket, RotateCcw, HelpCircle, Volume2, VolumeX, Music } from 'lucide-react';
 
 export const MainMenu: React.FC = () => {
   const [showControls, setShowControls] = useState(false);
   const startGame = useGameStore((state) => state.startGame);
-  const soundEnabled = useGameStore((state) => state.soundEnabled);
-  const toggleSound = useGameStore((state) => state.toggleSound);
+  const musicEnabled = useGameStore((state) => state.musicEnabled);
+  const sfxEnabled = useGameStore((state) => state.sfxEnabled);
+  const toggleMusic = useGameStore((state) => state.toggleMusic);
+  const toggleSFX = useGameStore((state) => state.toggleSFX);
 
   return (
     <div className="fixed inset-0 z-50 bg-space-900/95 flex flex-col items-center justify-center p-6 select-none font-mono">
@@ -80,23 +82,26 @@ export const MainMenu: React.FC = () => {
           </div>
         )}
 
-        {/* Sound Toggle */}
-        <div className="flex items-center justify-center space-x-2 text-xs text-slate-400">
+        {/* Audio Toggles */}
+        <div className="flex items-center justify-center space-x-6 text-xs text-slate-400">
           <button
-            onClick={toggleSound}
-            className="flex items-center space-x-1.5 hover:text-cyan-400 transition-colors"
+            onClick={toggleMusic}
+            className="flex items-center space-x-1.5 hover:text-purple-300 transition-colors"
           >
-            {soundEnabled ? (
-              <>
-                <Volume2 className="w-4 h-4 text-cyan-400" />
-                <span>Audio Engine: ONLINE</span>
-              </>
+            <Music className={`w-4 h-4 ${musicEnabled ? 'text-purple-400' : 'text-slate-600'}`} />
+            <span>Music: <strong className={musicEnabled ? 'text-purple-300' : 'text-slate-500'}>{musicEnabled ? 'ON' : 'OFF'}</strong></span>
+          </button>
+
+          <button
+            onClick={toggleSFX}
+            className="flex items-center space-x-1.5 hover:text-cyan-300 transition-colors"
+          >
+            {sfxEnabled ? (
+              <Volume2 className="w-4 h-4 text-cyan-400" />
             ) : (
-              <>
-                <VolumeX className="w-4 h-4 text-slate-500" />
-                <span>Audio Engine: MUTED</span>
-              </>
+              <VolumeX className="w-4 h-4 text-slate-600" />
             )}
+            <span>SFX: <strong className={sfxEnabled ? 'text-cyan-300' : 'text-slate-500'}>{sfxEnabled ? 'ON' : 'OFF'}</strong></span>
           </button>
         </div>
       </div>

@@ -163,5 +163,7 @@ export interface GameState {
   };
   gameStatus: GameStatus;
   soundEnabled: boolean;
+  musicEnabled: boolean;
+  sfxEnabled: boolean;
   combatAlert: boolean;
 }

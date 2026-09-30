@@ -15,6 +15,9 @@ import {
   Coins,
   Package,
   AlertOctagon,
+  Music,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 
 export const StationModal: React.FC = () => {
@@ -22,6 +25,10 @@ export const StationModal: React.FC = () => {
   const market = useGameStore((state) => state.market);
   const player = useGameStore((state) => state.player);
   const ship = useGameStore((state) => state.ship);
+  const musicEnabled = useGameStore((state) => state.musicEnabled);
+  const sfxEnabled = useGameStore((state) => state.sfxEnabled);
+  const toggleMusic = useGameStore((state) => state.toggleMusic);
+  const toggleSFX = useGameStore((state) => state.toggleSFX);
   const undock = useGameStore((state) => state.undock);
   const buyCommodity = useGameStore((state) => state.buyCommodity);
   const sellCommodity = useGameStore((state) => state.sellCommodity);
@@ -103,6 +110,32 @@ export const StationModal: React.FC = () => {
                 {currentCargo}/{player.cargoCapacity} <span className="text-slate-400 text-[10px]">({remainingCargo} Free)</span>
               </span>
             </div>
+
+            {/* Music Toggle */}
+            <button
+              onClick={toggleMusic}
+              className={`p-1.5 rounded-lg border text-xs font-bold transition-all ${
+                musicEnabled
+                  ? 'bg-purple-950/80 border-purple-500/50 text-purple-300'
+                  : 'bg-slate-900 border-slate-700 text-slate-500'
+              }`}
+              title="Toggle Music"
+            >
+              <Music className="w-4 h-4" />
+            </button>
+
+            {/* SFX Toggle */}
+            <button
+              onClick={toggleSFX}
+              className={`p-1.5 rounded-lg border text-xs font-bold transition-all ${
+                sfxEnabled
+                  ? 'bg-cyan-950/80 border-cyan-500/50 text-cyan-300'
+                  : 'bg-slate-900 border-slate-700 text-slate-500'
+              }`}
+              title="Toggle Sound Effects"
+            >
+              {sfxEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            </button>
 
             {/* Sector Jump Button */}
             <button
