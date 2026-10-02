@@ -1737,6 +1737,22 @@ export class GameEngine {
         newShield = Math.min(enemy.maxShield, enemy.shield + rechargeRate);
       }
 
+      // Smoke & fiery spark particles trailing from heavily damaged enemy hulls
+      if (enemy.hull < (enemy.maxHull || 100) * 0.45 && Math.random() < 0.22) {
+        const smokeAngle = enemyRot + Math.PI + (Math.random() - 0.5) * 0.8;
+        this.particles.push({
+          x: enemy.x + (Math.random() - 0.5) * 16,
+          y: enemy.y + (Math.random() - 0.5) * 16,
+          vx: Math.cos(smokeAngle) * 35 + (Math.random() - 0.5) * 15,
+          vy: Math.sin(smokeAngle) * 35 + (Math.random() - 0.5) * 15,
+          color: Math.random() < 0.55 ? '#64748b' : (enemy.hull < (enemy.maxHull || 100) * 0.2 ? '#EF4444' : '#F97316'),
+          size: 1.8 + Math.random() * 1.8,
+          alpha: 0.65,
+          lifetime: 0.35,
+          maxLifetime: 0.35,
+        });
+      }
+
       // Safety check against NaN coordinates
       if (!Number.isFinite(evx) || !Number.isFinite(evy)) {
         evx = 0;
@@ -3990,20 +4006,116 @@ export class GameEngine {
         ctx.fill();
       }
 
-      // Shield bubble if shielded (Rounded rectangular deflector barrier matching hull)
-      if (enemy.shield > 0) {
+      // Physical Hull Damage: Visible breach holes, blast scorches, and exposed molten framework
+      const maxH = enemy.maxHull || 1;
+      const hpPct = Math.max(0, Math.min(1, enemy.hull / maxH));
+
+      if (hpPct < 0.95) {
+        let breachSpots: { x: number; y: number; r: number }[] = [];
+        if (category === 'COLOSSUS' || category === 'CARRIER') {
+          breachSpots = [
+            { x: 26, y: -12, r: 5.0 },
+            { x: -14, y: 14, r: 6.0 },
+            { x: 44, y: 2, r: 4.5 },
+            { x: -22, y: -16, r: 5.5 },
+            { x: 8, y: 16, r: 4.8 },
+            { x: -28, y: 0, r: 6.5 },
+          ];
+        } else if (category === 'BATTLESHIP') {
+          breachSpots = [
+            { x: 20, y: -8, r: 4.2 },
+            { x: -8, y: 11, r: 4.8 },
+            { x: 32, y: 0, r: 3.8 },
+            { x: -18, y: -10, r: 4.5 },
+            { x: -20, y: 8, r: 5.2 },
+          ];
+        } else if (category === 'CRUISER') {
+          breachSpots = [
+            { x: 18, y: -9, r: 3.8 },
+            { x: -6, y: 10, r: 4.2 },
+            { x: 26, y: 0, r: 3.2 },
+            { x: -14, y: -8, r: 4.0 },
+          ];
+        } else if (category === 'FRIGATE' || category === 'CORVETTE') {
+          breachSpots = [
+            { x: 12, y: -6, r: 3.2 },
+            { x: -4, y: 8, r: 3.8 },
+            { x: 16, y: 0, r: 2.8 },
+            { x: -10, y: -7, r: 3.5 },
+          ];
+        } else {
+          // SCOUT
+          breachSpots = [
+            { x: 8, y: -4, r: 2.6 },
+            { x: -4, y: 4, r: 3.0 },
+            { x: -8, y: 0, r: 2.5 },
+          ];
+        }
+
+        const totalHoles = breachSpots.length;
+        const holesToDraw = Math.min(totalHoles, Math.max(1, Math.ceil((1.0 - hpPct) * totalHoles * 1.35)));
+
+        for (let hIdx = 0; hIdx < holesToDraw; hIdx++) {
+          const spot = breachSpots[hIdx];
+          
+          // Outer charred void burn
+          ctx.fillStyle = '#090a0f';
+          ctx.strokeStyle = hpPct < 0.35 ? '#EF4444' : '#EA580C';
+          ctx.lineWidth = 1.0;
+          
+          ctx.beginPath();
+          ctx.ellipse(spot.x, spot.y, spot.r, spot.r * 0.75, hIdx * 0.6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          // Internal exposed molten fiery core
+          ctx.fillStyle = hpPct < 0.25 ? '#FBBF24' : '#F97316';
+          ctx.beginPath();
+          ctx.arc(spot.x + 0.4, spot.y + 0.2, Math.max(0.8, spot.r * 0.38), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Dynamic Shield barrier (Width, opacity & line pattern dynamically scale with shield capacity)
+      if (enemy.shield > 0 && (enemy.maxShield || 0) > 0) {
+        const shieldPct = Math.max(0, Math.min(1, enemy.shield / enemy.maxShield));
         const eBox = getEnemyBoundingBox(category, 1.0);
         const sL = eBox.halfLength + 6;
         const sW = eBox.halfWidth + 6;
-        ctx.strokeStyle = threatLevel === 'STRONGER' ? 'rgba(168, 85, 247, 0.75)' : threatLevel === 'EVEN' ? 'rgba(239, 68, 68, 0.65)' : 'rgba(249, 115, 22, 0.65)';
-        ctx.lineWidth = threatLevel === 'STRONGER' ? 2.2 : 1.8;
+
+        // Dynamic barrier thickness: 1.2px (failing) up to 4.5px (full shield capacity)
+        const barrierWidth = Number((1.2 + 3.3 * shieldPct).toFixed(1));
+        const barrierAlpha = Number((0.25 + 0.65 * shieldPct).toFixed(2));
+        
+        let barrierStroke = `rgba(239, 68, 68, ${barrierAlpha})`;
+        let barrierFill = `rgba(239, 68, 68, ${0.04 + 0.12 * shieldPct})`;
+        if (threatLevel === 'STRONGER') {
+          barrierStroke = `rgba(168, 85, 247, ${barrierAlpha})`;
+          barrierFill = `rgba(168, 85, 247, ${0.05 + 0.14 * shieldPct})`;
+        } else if (threatLevel === 'WEAKER') {
+          barrierStroke = `rgba(249, 115, 22, ${barrierAlpha})`;
+          barrierFill = `rgba(249, 115, 22, ${0.04 + 0.10 * shieldPct})`;
+        }
+
+        ctx.save();
+        ctx.strokeStyle = barrierStroke;
+        ctx.fillStyle = barrierFill;
+        ctx.lineWidth = barrierWidth;
+
+        // Failing shield flickers with dashed line when < 30%
+        if (shieldPct < 0.30) {
+          ctx.setLineDash([5, 4]);
+        }
+
         ctx.beginPath();
         if (typeof ctx.roundRect === 'function') {
           ctx.roundRect(-sL + eBox.forwardOffset, -sW, sL * 2, sW * 2, 10);
         } else {
           ctx.rect(-sL + eBox.forwardOffset, -sW, sL * 2, sW * 2);
         }
+        ctx.fill();
         ctx.stroke();
+        ctx.restore();
       }
 
       // EMP Stun electric field
@@ -4018,33 +4130,7 @@ export class GameEngine {
 
       ctx.restore();
 
-      // Scaled Health bar & Shield bar above enemy
-      const barWidth = Math.round(36 * Math.min(2.5, enemyScale));
-      const maxH = enemy.maxHull || 20;
-      const hpPct = Math.max(0, Math.min(1, enemy.hull / maxH));
-      const barY = enemy.y - Math.round(30 * enemyScale);
-
-      // Background
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-      ctx.fillRect(enemy.x - barWidth / 2, barY, barWidth, 4);
-      // Hull Bar
-      ctx.fillStyle = threatColor;
-      ctx.fillRect(enemy.x - barWidth / 2, barY, barWidth * hpPct, 4);
-
-      // Shield sub-bar if enemy has shield
-      if (enemy.maxShield > 0) {
-        const shieldPct = Math.max(0, Math.min(1, enemy.shield / enemy.maxShield));
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-        ctx.fillRect(enemy.x - barWidth / 2, barY - 4, barWidth, 2.5);
-        ctx.fillStyle = '#38BDF8';
-        ctx.fillRect(enemy.x - barWidth / 2, barY - 4, barWidth * shieldPct, 2.5);
-      }
-
-      // Name & Threat indicator badge
-      ctx.fillStyle = enemy.stunDuration && enemy.stunDuration > 0 ? '#00F0FF' : threatColor;
-      ctx.font = 'bold 10px monospace';
-      ctx.textAlign = 'center';
-
+      // Clean, Prominent Floating Threat & Status Tag (Replaced micro bars with high-contrast label)
       let threatBadge = `[MATCH]`;
       if (threatLevel === 'WEAKER') {
         const pct = Math.abs(Math.round((enemy.powerDelta || -0.15) * 100));
@@ -4056,10 +4142,31 @@ export class GameEngine {
         threatBadge = `■ [MATCH ±5%]`;
       }
 
+      const isCrit = hpPct < 0.30;
+      const critTag = isCrit ? ' 🔥[CRITICAL]' : '';
+      const shieldTag = enemy.shield > 0 ? ` 🛡️${Math.round((enemy.shield / (enemy.maxShield || 1)) * 100)}%` : '';
+
       const threatLabel = enemy.stunDuration && enemy.stunDuration > 0
         ? `⚡ [${category}] ${enemy.name} [EMP STUNNED ${enemy.stunDuration.toFixed(1)}s]`
-        : `${threatBadge} [${category}] ${enemy.name}`;
-      ctx.fillText(threatLabel, enemy.x, barY - 7);
+        : `${threatBadge} [${category}] ${enemy.name}${shieldTag}${critTag}`;
+
+      const labelY = enemy.y - Math.round(28 * enemyScale);
+
+      ctx.save();
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      const textWidth = ctx.measureText(threatLabel).width;
+
+      // Dark translucent backing pill for high readability against nebulae and stars
+      ctx.fillStyle = 'rgba(8, 12, 24, 0.85)';
+      ctx.fillRect(enemy.x - textWidth / 2 - 6, labelY - 11, textWidth + 12, 15);
+      ctx.strokeStyle = isCrit ? '#EF4444' : (enemy.stunDuration ? '#00F0FF' : threatColor);
+      ctx.lineWidth = 1;
+      ctx.strokeRect(enemy.x - textWidth / 2 - 6, labelY - 11, textWidth + 12, 15);
+
+      ctx.fillStyle = enemy.stunDuration && enemy.stunDuration > 0 ? '#00F0FF' : threatColor;
+      ctx.fillText(threatLabel, enemy.x, labelY);
+      ctx.restore();
     }
   }
 
