@@ -1119,7 +1119,7 @@ export class GameEngine {
             y: newY,
             vx: vx + Math.cos(angle) * flakSpeed,
             vy: vy + Math.sin(angle) * flakSpeed,
-            damage: 22,
+            damage: 10,
             lifetime: 0.35,
             color: '#FDE047',
             radius: 3,
@@ -1812,38 +1812,44 @@ export class GameEngine {
       let targetPullY = newY;
       let isEscortCollecting = false;
       let activeCollector: EscortShip | null = null;
+      let isMiningBargeCollector = false;
+      const isOreLoot = loot.item?.category === 'ORE' || loot.lootType === 'CARGO';
 
-      // Check distance to all player escorts
+      // Check distance to all player escorts (Mining barges have high-efficiency 650px ore tractor field)
       for (const esc of livePlayerEscorts) {
         const dEsc = Math.hypot(esc.x - lx, esc.y - ly);
-        if (dEsc < closestDist) {
+        const isBarge = esc.type === 'MINING_BARGE';
+        const effectiveTractor = (isBarge && isOreLoot) ? 650 : ESCORT_TRACTOR_RANGE;
+
+        if (dEsc < effectiveTractor && dEsc < closestDist) {
           closestDist = dEsc;
           targetPullX = esc.x;
           targetPullY = esc.y;
           isEscortCollecting = true;
           activeCollector = esc;
+          isMiningBargeCollector = isBarge;
         }
       }
 
-      const activeTractorRange = isEscortCollecting ? ESCORT_TRACTOR_RANGE : TRACTOR_RANGE;
+      const activeTractorRange = isMiningBargeCollector ? 650 : isEscortCollecting ? ESCORT_TRACTOR_RANGE : TRACTOR_RANGE;
       if (closestDist < activeTractorRange && closestDist > 0.001) {
         // Magnetic tractor beam pull (stronger gravity pull as ship gets larger)
         const pullAngle = Math.atan2(targetPullY - ly, targetPullX - lx);
-        const basePullSpeed = isEscortCollecting ? 320 : 270 * tierTractorScale;
-        const pullSpeed = basePullSpeed * Math.min(3.0, 1.25 - (closestDist / activeTractorRange) * 0.5);
+        const basePullSpeed = isMiningBargeCollector ? 480 : isEscortCollecting ? 320 : 270 * tierTractorScale;
+        const pullSpeed = basePullSpeed * Math.min(3.5, 1.3 - (closestDist / activeTractorRange) * 0.4);
         loot.vx = (loot.vx || 0) + Math.cos(pullAngle) * pullSpeed * dt;
         loot.vy = (loot.vy || 0) + Math.sin(pullAngle) * pullSpeed * dt;
 
-        // Visual collection tractor particle stream towards escort
-        if (isEscortCollecting && Math.random() < 0.25) {
+        // Visual collection tractor particle stream towards collector
+        if (isEscortCollecting && Math.random() < 0.28) {
           this.particles.push({
             x: lx + (Math.random() - 0.5) * 6,
             y: ly + (Math.random() - 0.5) * 6,
-            vx: Math.cos(pullAngle) * 90,
-            vy: Math.sin(pullAngle) * 90,
-            color: '#34D399',
-            size: 1.5,
-            alpha: 0.8,
+            vx: Math.cos(pullAngle) * 110,
+            vy: Math.sin(pullAngle) * 110,
+            color: isMiningBargeCollector ? '#06B6D4' : '#34D399',
+            size: 1.6,
+            alpha: 0.85,
             lifetime: 0.2,
             maxLifetime: 0.2,
           });
@@ -2240,9 +2246,30 @@ export class GameEngine {
             }
           }
 
-          // Always fly with the fleet formation position so it keeps up
-          evx += (Math.cos(formMoveAngle) * desiredFollowSpeed - evx) * Math.min(1, 5.0 * dt);
-          evy += (Math.sin(formMoveAngle) * desiredFollowSpeed - evy) * Math.min(1, 5.0 * dt);
+          // Check for nearby floating ore pods to sweep and collect
+          const floatingLoots = world.floatingLoot || [];
+          let nearestOreLoot = null;
+          let nearestOreDist = 450;
+          for (const loot of floatingLoots) {
+            if (loot.item?.category === 'ORE' || loot.lootType === 'CARGO') {
+              const dLoot = Math.hypot(loot.x - ex, loot.y - ey);
+              if (dLoot < nearestOreDist) {
+                nearestOreDist = dLoot;
+                nearestOreLoot = loot;
+              }
+            }
+          }
+
+          // If close to player and there's nearby ore, bias flight path toward the ore pod
+          if (nearestOreLoot && distToForm < 350) {
+            const oreAngle = Math.atan2(nearestOreLoot.y - ey, nearestOreLoot.x - ex);
+            evx += (Math.cos(oreAngle) * Math.min(maxFollowSpeed, 280) - evx) * Math.min(1, 4.5 * dt);
+            evy += (Math.sin(oreAngle) * Math.min(maxFollowSpeed, 280) - evy) * Math.min(1, 4.5 * dt);
+          } else {
+            // Always fly with the fleet formation position so it keeps up
+            evx += (Math.cos(formMoveAngle) * desiredFollowSpeed - evx) * Math.min(1, 5.0 * dt);
+            evy += (Math.sin(formMoveAngle) * desiredFollowSpeed - evy) * Math.min(1, 5.0 * dt);
+          }
 
           if (closestAst) {
             currentMiningTargetId = closestAst.id;
@@ -2268,6 +2295,8 @@ export class GameEngine {
                 maxLifetime: 0.2,
               });
             }
+          } else if (nearestOreLoot) {
+            erot = Math.atan2(nearestOreLoot.y - ey, nearestOreLoot.x - ex);
           } else {
             erot = rot;
           }

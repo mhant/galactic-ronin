@@ -293,7 +293,6 @@ export function createScaledEnemy(
 
   let category: Enemy['category'] = 'SCOUT';
   let title = 'Outlaw Interceptor';
-  let baseScale = 1.0;
   let armorRating = 0; // % of direct laser fire absorbed
 
   if (enemyTier >= 22) {
@@ -307,69 +306,66 @@ export function createScaledEnemy(
       'Archon Star-Eater Flagship',
     ];
     title = grandTitles[(enemyTier + Math.floor(factor * 10)) % grandTitles.length];
-    baseScale = 3.0 + (enemyTier - 22) * 0.035;
     armorRating = 0.15;
   } else if (enemyTier >= 20) {
     category = 'COLOSSUS';
     title = factor > 1.05 ? 'Astral Leviathan Titan' : 'Ouroboros Apex Flagship';
-    baseScale = 2.8;
     armorRating = 0.14;
   } else if (enemyTier >= 17) {
     category = 'CARRIER';
     title = factor > 1.05 ? 'Archon Supercarrier' : 'Hyperion Fleet Carrier';
-    baseScale = 2.5;
     armorRating = 0.12;
   } else if (enemyTier >= 15) {
     category = 'COLOSSUS';
     title = factor > 1.05 ? 'Solar Apex Colossus' : 'Eclipse Flagship';
-    baseScale = 2.3;
     armorRating = 0.12;
   } else if (enemyTier >= 13) {
     category = 'BATTLESHIP';
     title = factor > 1.05 ? 'Behemoth Battleship' : 'Void Dreadnought';
-    baseScale = 2.0;
     armorRating = 0.10;
   } else if (enemyTier >= 9) {
     category = 'CRUISER';
     title = factor > 1.05 ? 'Warlord Battlecruiser' : 'Heavy Assault Cruiser';
-    baseScale = 1.7;
     armorRating = 0.08;
   } else if (enemyTier >= 6) {
     category = 'FRIGATE';
     title = factor > 1.05 ? 'Valkyrie Warship' : 'Reaper Heavy Frigate';
-    baseScale = 1.4;
     armorRating = 0.05;
   } else if (enemyTier >= 4) {
     category = 'CORVETTE';
     title = factor > 1.05 ? 'Hammerhead Raider' : 'Marauder Gunship';
-    baseScale = 1.15;
     armorRating = 0;
   } else {
     category = 'SCOUT';
     title = factor > 1.05 ? 'Vanguard Interceptor' : 'Outlaw Skiff';
-    baseScale = 0.95;
     armorRating = 0;
   }
 
-  // Ship size scales with the -30% to +15% power/size variation factor
-  const enemyScale = Number((baseScale * factor).toFixed(2));
+  // Ship visual size directly scales with factor relative to player's ship scale:
+  // - Weaker / Yellow / Orange (factor 0.70 to 0.95): visibly 5% to 30% smaller than player
+  // - Matched / Red (factor 0.95 to 1.05): identical in scale to player
+  // - Apex / Purple (factor 1.05 to 1.15): visibly 5% to 15% larger than player
+  const playerScale = playerTier <= 22 ? 1.0 : (1.0 + (playerTier - 22) * 0.008);
+  const enemyScale = Number((playerScale * factor).toFixed(2));
 
   // 2. Streamlined HP & Shield Scaling
-  // Player can easily overpower a single matched enemy with focused continuous laser volleys
+  // Calibrated volleys needed:
+  // - Orange (-30% to -5%): 4.5 to 6.5 volleys (tough enough to survive auto-turrets, requires player shooting)
+  // - Red (-5% to +5%): 7.0 to 9.5 volleys (~2.5s of focused dogfight)
+  // - Purple (+5% to +15%): 10.0 to 14.0 volleys (challenging mini-boss dogfight)
   const volleyMultiplier = weaponLevel >= 5 ? 1.79 : weaponLevel >= 4 ? 1.4 : weaponLevel >= 3 ? 1.35 : weaponLevel >= 2 ? 1.2 : 1.0;
   const expectedVolleyDmg = (45 + weaponPower * 12) * (1 + (weaponLevel - 1) * 0.25) * volleyMultiplier;
 
-  // Number of volleys needed: Orange (1.8-2.6), Red (2.6-3.4), Purple (3.4-4.8)
-  let volleysNeeded = 3.0;
+  let volleysNeeded = 7.5;
   if (threatLevel === 'WEAKER') {
-    volleysNeeded = 1.8 + ((factor - 0.70) / 0.25) * 0.8;
+    volleysNeeded = 4.5 + ((factor - 0.70) / 0.25) * 2.0;
   } else if (threatLevel === 'STRONGER') {
-    volleysNeeded = 3.4 + ((factor - 1.05) / 0.10) * 1.4;
+    volleysNeeded = 10.0 + ((factor - 1.05) / 0.10) * 4.0;
   } else {
-    volleysNeeded = 2.6 + ((factor - 0.95) / 0.10) * 0.8;
+    volleysNeeded = 7.0 + ((factor - 0.95) / 0.10) * 2.5;
   }
 
-  const totalEffectiveHP = Math.max(30, Math.round(expectedVolleyDmg * volleysNeeded));
+  const totalEffectiveHP = Math.max(45, Math.round(expectedVolleyDmg * volleysNeeded));
 
   // Divide between Hull and Deflector Shields based on category
   let maxShield = 0;
