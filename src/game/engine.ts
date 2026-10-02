@@ -346,16 +346,72 @@ export class GameEngine {
     SoundManager.playTorpedoLaunch();
 
     const rot = ship.rotation;
+    let fireAngle = rot;
+    const isEasyMode = (state.difficulty || 'EASY') === 'EASY';
+    const halfVw = this.canvas.width > 0 ? (this.canvas.width / 2) / (this.currentZoom || 1) : 700;
+    const halfVh = this.canvas.height > 0 ? (this.canvas.height / 2) / (this.currentZoom || 1) : 450;
+
+    let bestTarget: { x: number; y: number; vx?: number; vy?: number; id: string } | null = null;
+    const liveEnemies = state.world.enemies || [];
+    const liveEnemyEscorts = (state.world.escorts || []).filter((e) => e.owner === 'ENEMY');
+
+    if (isEasyMode) {
+      // 360° Omni-directional auto-aim on closest on-screen hostile
+      let closestDist = Math.hypot(halfVw, halfVh) + 200;
+      for (const e of liveEnemies) {
+        const isEnOnScreen = Math.abs(e.x - ship.x) <= halfVw + 40 && Math.abs(e.y - ship.y) <= halfVh + 40;
+        if (!isEnOnScreen) continue;
+        const dist = Math.hypot(e.x - ship.x, e.y - ship.y);
+        if (dist < closestDist) {
+          closestDist = dist;
+          bestTarget = e;
+        }
+      }
+      if (!bestTarget) {
+        for (const esc of liveEnemyEscorts) {
+          const isEscOnScreen = Math.abs(esc.x - ship.x) <= halfVw + 40 && Math.abs(esc.y - ship.y) <= halfVh + 40;
+          if (!isEscOnScreen) continue;
+          const dist = Math.hypot(esc.x - ship.x, esc.y - ship.y);
+          if (dist < closestDist) {
+            closestDist = dist;
+            bestTarget = esc;
+          }
+        }
+      }
+    } else {
+      // Frontal cone magnetic assist (~35° cone)
+      let smallestDiff = 0.60;
+      for (const e of liveEnemies) {
+        const isEnOnScreen = Math.abs(e.x - ship.x) <= halfVw + 40 && Math.abs(e.y - ship.y) <= halfVh + 40;
+        if (!isEnOnScreen) continue;
+        const angleToEnemy = Math.atan2(e.y - ship.y, e.x - ship.x);
+        const diff = Math.abs(Math.atan2(Math.sin(angleToEnemy - rot), Math.cos(angleToEnemy - rot)));
+        const dist = Math.hypot(e.x - ship.x, e.y - ship.y);
+        if (dist < 900 && diff < smallestDiff) {
+          smallestDiff = diff;
+          bestTarget = e;
+        }
+      }
+    }
+
+    if (bestTarget) {
+      const distToTarget = Math.hypot(bestTarget.x - ship.x, bestTarget.y - ship.y);
+      const leadTime = Math.min(1.0, distToTarget / 620);
+      const predX = bestTarget.x + (bestTarget.vx || 0) * leadTime;
+      const predY = bestTarget.y + (bestTarget.vy || 0) * leadTime;
+      fireAngle = Math.atan2(predY - ship.y, predX - ship.x);
+    }
+
     const launchSpeed = 620;
-    const projVx = ship.vx + Math.cos(rot) * launchSpeed;
-    const projVy = ship.vy + Math.sin(rot) * launchSpeed;
+    const projVx = ship.vx + Math.cos(fireAngle) * launchSpeed;
+    const projVy = ship.vy + Math.sin(fireAngle) * launchSpeed;
 
     const torpedo: Projectile = {
       id: `p_torp_${Date.now()}_${Math.random()}`,
       owner: 'PLAYER',
       type: 'TORPEDO',
-      x: ship.x + Math.cos(rot) * 26,
-      y: ship.y + Math.sin(rot) * 26,
+      x: ship.x + Math.cos(fireAngle) * 26,
+      y: ship.y + Math.sin(fireAngle) * 26,
       vx: projVx,
       vy: projVy,
       damage: 180, // Heavy explosive warhead!
@@ -694,24 +750,59 @@ export class GameEngine {
       if (this.playerShootCooldown <= 0) {
         this.playerShootCooldown = fireCooldownRate;
 
-        // Magnetic Aim Assist: lead towards nearby hostile if aiming in their direction
+        // Magnetic Aim Assist: on EASY mode, provides full 360° omni-directional auto-aim on closest on-screen hostile!
         let fireAngle = rot;
         const liveEnemies = useGameStore.getState().world.enemies;
-        let bestTarget: Enemy | null = null;
-        let smallestDiff = 0.58; // ~33 degree cone
+        const liveEnemyEscorts = (useGameStore.getState().world.escorts || []).filter((e) => e.owner === 'ENEMY');
+        const isEasyMode = (state.difficulty || 'EASY') === 'EASY';
 
-        for (const e of liveEnemies) {
-          const angleToEnemy = Math.atan2(e.y - newY, e.x - newX);
-          const diff = Math.abs(Math.atan2(Math.sin(angleToEnemy - rot), Math.cos(angleToEnemy - rot)));
-          const dist = Math.hypot(e.x - newX, e.y - newY);
-          if (dist < 850 && diff < smallestDiff) {
-            smallestDiff = diff;
-            bestTarget = e;
+        let bestTarget: { x: number; y: number; vx?: number; vy?: number; id: string } | null = null;
+
+        if (isEasyMode) {
+          // Full 360° Omni-Directional Smart Auto-Aim on closest on-screen hostile
+          let closestDist = Math.max(halfVw, halfVh) + 100;
+          for (const e of liveEnemies) {
+            const isEnOnScreen = Math.abs(e.x - newX) <= halfVw + 40 && Math.abs(e.y - newY) <= halfVh + 40;
+            if (!isEnOnScreen) continue;
+            const dist = Math.hypot(e.x - newX, e.y - newY);
+            if (dist < closestDist) {
+              closestDist = dist;
+              bestTarget = e;
+            }
+          }
+          if (!bestTarget) {
+            for (const esc of liveEnemyEscorts) {
+              const isEscOnScreen = Math.abs(esc.x - newX) <= halfVw + 40 && Math.abs(esc.y - newY) <= halfVh + 40;
+              if (!isEscOnScreen) continue;
+              const dist = Math.hypot(esc.x - newX, esc.y - newY);
+              if (dist < closestDist) {
+                closestDist = dist;
+                bestTarget = esc;
+              }
+            }
+          }
+        } else {
+          // Standard magnetic frontal cone assist (~35° cone)
+          let smallestDiff = 0.60;
+          for (const e of liveEnemies) {
+            const isEnOnScreen = Math.abs(e.x - newX) <= halfVw + 40 && Math.abs(e.y - newY) <= halfVh + 40;
+            if (!isEnOnScreen) continue;
+            const angleToEnemy = Math.atan2(e.y - newY, e.x - newX);
+            const diff = Math.abs(Math.atan2(Math.sin(angleToEnemy - rot), Math.cos(angleToEnemy - rot)));
+            const dist = Math.hypot(e.x - newX, e.y - newY);
+            if (dist < 850 && diff < smallestDiff) {
+              smallestDiff = diff;
+              bestTarget = e;
+            }
           }
         }
 
         if (bestTarget) {
-          fireAngle = Math.atan2(bestTarget.y - newY, bestTarget.x - newX);
+          const distToTarget = Math.hypot(bestTarget.x - newX, bestTarget.y - newY);
+          const leadTime = Math.min(0.8, distToTarget / 880);
+          const predX = bestTarget.x + (bestTarget.vx || 0) * leadTime;
+          const predY = bestTarget.y + (bestTarget.vy || 0) * leadTime;
+          fireAngle = Math.atan2(predY - newY, predX - newX);
           this.lastTargetedEnemyId = bestTarget.id;
         }
 
