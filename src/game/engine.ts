@@ -34,6 +34,7 @@ export class GameEngine {
   private playerBeamTarget: { x: number; y: number; id: string; isEscort?: boolean } | null = null;
   private enemyBeamActive: Set<string> = new Set();
   private phaserAudioCooldown: number = 0;
+  private lastTargetedEnemyId: string | null = null;
 
   // Performance accumulators & throttles
   private lastClusterCheckX: number = -999999;
@@ -562,6 +563,7 @@ export class GameEngine {
 
         if (bestTarget) {
           fireAngle = Math.atan2(bestTarget.y - newY, bestTarget.x - newX);
+          this.lastTargetedEnemyId = bestTarget.id;
         }
 
         const perpAngle = fireAngle + Math.PI / 2;
@@ -1020,6 +1022,7 @@ export class GameEngine {
           const enemyHitRadius = Math.max(28, 22 * (enemy.scale || 1.0));
           const hitRadius = proj.type === 'TORPEDO' ? enemyHitRadius + 24 : enemyHitRadius;
           if (dist < hitRadius) {
+            this.lastTargetedEnemyId = enemy.id;
             if (proj.type === 'TORPEDO') {
               // Massive Torpedo Blast AOE! (Explosive damage ignores armor)
               SoundManager.playExplosion();
@@ -1700,6 +1703,7 @@ export class GameEngine {
 
       if (closestTarget) {
         this.playerBeamTarget = closestTarget;
+        this.lastTargetedEnemyId = closestTarget.id;
         const beamDps = 145 * (1 + (ship.weaponPower || 3) * 0.15);
         this.playerBeamDamageAccumulator += beamDps * dt;
         this.playerBeamDamageTimer += dt;
@@ -1789,6 +1793,11 @@ export class GameEngine {
     const armadaStance = ship.armadaStance || 'DEFEND';
     const enemyProjsForEscort = useGameStore.getState().world.projectiles.filter((p) => p.owner === 'ENEMY');
 
+    // Dynamic speed matching: escorts match and exceed player speeds to prevent falling behind
+    const playerSpeed = Math.hypot(vx, vy);
+    const playerMaxTheoreticalSpeed = 220 + (ship.enginePower || 4) * 40 + (ship.engineLevel || 1) * 55;
+    const escortBaseSpeed = Math.max(400, playerMaxTheoreticalSpeed * 1.35);
+
     // Use current active world escorts as the source of truth
     const allEscorts: EscortShip[] = (world.escorts || []).filter((e) => e.hull > 0);
 
@@ -1846,38 +1855,48 @@ export class GameEngine {
 
       if (escort.owner === 'PLAYER') {
         // === PLAYER ESCORT ===
+        // Formation Slot Coordinates
+        const formationRadius = 48 * playerScaleVal + escort.formationDist;
+        const targetFormationAngle = rot + escort.formationAngle;
+        const targetFormX = newX + Math.cos(targetFormationAngle) * formationRadius;
+        const targetFormY = newY + Math.sin(targetFormationAngle) * formationRadius;
+        const distToForm = Math.hypot(targetFormX - ex, targetFormY - ey);
+        const distToPlayer = Math.hypot(newX - ex, newY - ey);
 
-        // Specialty 1: Auto-Mining Barge
+        // Catch-up multiplier so fleet never falls behind when player upgrades engines or boosts
+        const catchupMultiplier = Math.min(3.6, 1.0 + distToForm / 90);
+        const maxFollowSpeed = escortBaseSpeed * catchupMultiplier;
+        const desiredFollowSpeed = Math.min(maxFollowSpeed, Math.max(playerSpeed * 1.3, distToForm * 5.8));
+        const formMoveAngle = Math.atan2(targetFormY - ey, targetFormX - ex);
+
+        // Specialty 1: Auto-Mining Barge (Follows player fleet, mines asteroids in reach)
         if (escort.type === 'MINING_BARGE') {
-          // Look for closest asteroid within 480px
+          // Look for closest asteroid within reach of player & fleet (within 550px of player and 420px of barge)
           let closestAst: Asteroid | null = null;
-          let minAstDist = 480;
+          let minAstDist = 420;
           const liveAsteroids = world.asteroids || [];
           for (const ast of liveAsteroids) {
             if (ast.health > 0) {
-              const d = Math.hypot(ast.x - ex, ast.y - ey);
-              if (d < minAstDist) {
-                minAstDist = d;
+              const dPlayer = Math.hypot(ast.x - newX, ast.y - newY);
+              const dBarge = Math.hypot(ast.x - ex, ast.y - ey);
+              if (dPlayer < 560 && dBarge < minAstDist) {
+                minAstDist = dBarge;
                 closestAst = ast;
               }
             }
           }
 
+          // Always fly with the fleet formation position
+          evx += (Math.cos(formMoveAngle) * desiredFollowSpeed - evx) * Math.min(1, 5.0 * dt);
+          evy += (Math.sin(formMoveAngle) * desiredFollowSpeed - evy) * Math.min(1, 5.0 * dt);
+
           if (closestAst) {
             currentMiningTargetId = closestAst.id;
             const aimAngle = Math.atan2(closestAst.y - ey, closestAst.x - ex);
             erot = aimAngle;
-            // Approach asteroid up to 180px distance
-            if (minAstDist > 180) {
-              evx += (Math.cos(aimAngle) * 220 - evx) * Math.min(1, 3.5 * dt);
-              evy += (Math.sin(aimAngle) * 220 - evy) * Math.min(1, 3.5 * dt);
-            } else {
-              evx *= Math.max(0, 1 - 2 * dt);
-              evy *= Math.max(0, 1 - 2 * dt);
-            }
 
             // Apply mining damage to asteroid
-            const miningDps = 85;
+            const miningDps = 95;
             state.damageAsteroid(closestAst.id, miningDps * dt);
 
             // Turquoise mining beam impact spark particles on asteroid
@@ -1895,6 +1914,8 @@ export class GameEngine {
                 maxLifetime: 0.2,
               });
             }
+          } else {
+            erot = rot;
           }
         }
 
@@ -1915,8 +1936,7 @@ export class GameEngine {
         if (escort.type === 'REPAIR_TENDER') {
           if (fireCd <= 0) {
             fireCd = 2.5;
-            const distToPlayer = Math.hypot(newX - ex, newY - ey);
-            if (distToPlayer < 340) {
+            if (distToPlayer < 360) {
               useGameStore.setState((s) => ({
                 player: { ...s.player, hull: Math.min(s.player.maxHull, s.player.hull + 15) },
                 ship: { ...s.ship, shield: Math.min(s.ship.maxShield, s.ship.shield + 20) },
@@ -1926,7 +1946,7 @@ export class GameEngine {
             for (const otherEsc of allEscorts) {
               if (otherEsc.owner === 'PLAYER') {
                 const distToOther = Math.hypot(otherEsc.x - ex, otherEsc.y - ey);
-                if (distToOther < 340) {
+                if (distToOther < 360) {
                   otherEsc.hull = Math.min(otherEsc.maxHull, otherEsc.hull + 25);
                   otherEsc.shield = Math.min(otherEsc.maxShield, otherEsc.shield + 25);
                 }
@@ -1950,21 +1970,12 @@ export class GameEngine {
           }
         }
 
-        // Standard Movement / Formation
+        // Standard Movement & Combat for Non-Mining Ships
         if (armadaStance === 'DEFEND' && escort.type !== 'MINING_BARGE') {
-          // Tight wingman formation protecting player
-          const formationRadius = 48 * playerScaleVal + escort.formationDist;
-          const targetFormationAngle = rot + escort.formationAngle;
-          const targetFormX = newX + Math.cos(targetFormationAngle) * formationRadius;
-          const targetFormY = newY + Math.sin(targetFormationAngle) * formationRadius;
-
-          const distToForm = Math.hypot(targetFormX - ex, targetFormY - ey);
-          const moveAngle = Math.atan2(targetFormY - ey, targetFormX - ex);
-          const maxEscortSpeed = 380;
-          const desiredSpeed = Math.min(maxEscortSpeed, distToForm * 5);
-
-          evx += (Math.cos(moveAngle) * desiredSpeed - evx) * Math.min(1, 4.5 * dt);
-          evy += (Math.sin(moveAngle) * desiredSpeed - evy) * Math.min(1, 4.5 * dt);
+          // === DEFEND STANCE ===
+          // Stay close in tight wingman formation around player, matching speed with catchup
+          evx += (Math.cos(formMoveAngle) * desiredFollowSpeed - evx) * Math.min(1, 5.2 * dt);
+          evy += (Math.sin(formMoveAngle) * desiredFollowSpeed - evy) * Math.min(1, 5.2 * dt);
           erot = rot;
 
           // Intercept enemy projectiles close to player/escort
@@ -1978,10 +1989,10 @@ export class GameEngine {
             }
           }
 
-          // Combat Firing in DEFEND stance
+          // Combat Firing in DEFEND stance: attack any enemy ship close by while staying in formation
           if (fireCd <= 0 && (liveEnemiesForBeam.length > 0 || liveEnemyEscorts.length > 0)) {
             let closeTarget: { x: number; y: number; id?: string } | null = null;
-            let closeDist = 480;
+            let closeDist = 520;
             for (const en of liveEnemiesForBeam) {
               const d = Math.hypot(en.x - ex, en.y - ey);
               if (d < closeDist) {
@@ -2058,10 +2069,45 @@ export class GameEngine {
           }
         } else if (armadaStance === 'ATTACK' && escort.type !== 'MINING_BARGE') {
           // === ATTACK STANCE ===
-          const targetEnemy: { x: number; y: number; id?: string } | null =
-            this.playerBeamTarget ||
-            (liveEnemiesForBeam.length > 0 ? liveEnemiesForBeam[0] : null) ||
-            (liveEnemyEscorts.length > 0 ? liveEnemyEscorts[0] : null);
+          // Focus fire on whatever enemy ship the player last targeted
+          let targetEnemy: { x: number; y: number; id?: string } | null = null;
+
+          if (this.lastTargetedEnemyId) {
+            const targetedEnemy = enemyMap.get(this.lastTargetedEnemyId);
+            if (targetedEnemy && targetedEnemy.hull > 0) {
+              const d = Math.hypot(targetedEnemy.x - newX, targetedEnemy.y - newY);
+              if (d < 2000) {
+                targetEnemy = { x: targetedEnemy.x, y: targetedEnemy.y, id: targetedEnemy.id };
+              }
+            } else {
+              this.lastTargetedEnemyId = null;
+            }
+          }
+
+          if (!targetEnemy && this.playerBeamTarget) {
+            targetEnemy = this.playerBeamTarget;
+          }
+
+          if (!targetEnemy) {
+            // Fallback to closest enemy to player
+            let minD = 1500;
+            for (const en of liveEnemiesForBeam) {
+              const d = Math.hypot(en.x - newX, en.y - newY);
+              if (d < minD) {
+                minD = d;
+                targetEnemy = { x: en.x, y: en.y, id: en.id };
+              }
+            }
+            if (!targetEnemy) {
+              for (const ee of liveEnemyEscorts) {
+                const d = Math.hypot(ee.x - newX, ee.y - newY);
+                if (d < minD) {
+                  minD = d;
+                  targetEnemy = { x: ee.x, y: ee.y, id: ee.id };
+                }
+              }
+            }
+          }
 
           if (targetEnemy) {
             const distToEnemy = Math.hypot(targetEnemy.x - ex, targetEnemy.y - ey);
@@ -2071,16 +2117,16 @@ export class GameEngine {
             const targetAttackY = targetEnemy.y + Math.sin(attackOffsetAngle) * orbitDist;
 
             const moveAngle = Math.atan2(targetAttackY - ey, targetAttackX - ex);
-            const desiredSpeed = 340;
-            evx += (Math.cos(moveAngle) * desiredSpeed - evx) * Math.min(1, 4.0 * dt);
-            evy += (Math.sin(moveAngle) * desiredSpeed - evy) * Math.min(1, 4.0 * dt);
+            const attackSpeed = Math.max(escortBaseSpeed * 1.1, playerSpeed * 1.3);
+            evx += (Math.cos(moveAngle) * attackSpeed - evx) * Math.min(1, 4.8 * dt);
+            evy += (Math.sin(moveAngle) * attackSpeed - evy) * Math.min(1, 4.8 * dt);
 
             // Aim at target enemy
             const aimAngle = Math.atan2(targetEnemy.y - ey, targetEnemy.x - ex);
             const rotDiff = Math.atan2(Math.sin(aimAngle - erot), Math.cos(aimAngle - erot));
-            erot += Math.sign(rotDiff) * Math.min(Math.abs(rotDiff), 5.5 * dt);
+            erot += Math.sign(rotDiff) * Math.min(Math.abs(rotDiff), 6.0 * dt);
 
-            if (distToEnemy < 560 && Math.abs(rotDiff) < 0.5 && fireCd <= 0) {
+            if (distToEnemy < 600 && Math.abs(rotDiff) < 0.6 && fireCd <= 0) {
               if (escort.type === 'MISSILE_CRUISER') {
                 fireCd = 3.5;
                 state.addProjectile({
@@ -2134,7 +2180,7 @@ export class GameEngine {
               }
             }
           } else {
-            // No enemies: search for nearby floating loot pods to vacuum
+            // No enemies: search for nearby floating loot pods to vacuum or return to formation
             let closestLoot: any = null;
             let minLootDist = 450;
             for (const l of floatingLoots) {
@@ -2147,14 +2193,13 @@ export class GameEngine {
 
             if (closestLoot) {
               const lootAngle = Math.atan2((closestLoot.y ?? 0) - ey, (closestLoot.x ?? 0) - ex);
-              evx += (Math.cos(lootAngle) * 280 - evx) * Math.min(1, 3.5 * dt);
-              evy += (Math.sin(lootAngle) * 280 - evy) * Math.min(1, 3.5 * dt);
+              evx += (Math.cos(lootAngle) * 300 - evx) * Math.min(1, 4.0 * dt);
+              evy += (Math.sin(lootAngle) * 300 - evy) * Math.min(1, 4.0 * dt);
               erot = lootAngle;
             } else {
-              // Return to player
-              const moveAngle = Math.atan2(newY - ey, newX - ex);
-              evx += (Math.cos(moveAngle) * 260 - evx) * Math.min(1, 3.0 * dt);
-              evy += (Math.sin(moveAngle) * 260 - evy) * Math.min(1, 3.0 * dt);
+              // Return to formation with player
+              evx += (Math.cos(formMoveAngle) * desiredFollowSpeed - evx) * Math.min(1, 4.8 * dt);
+              evy += (Math.sin(formMoveAngle) * desiredFollowSpeed - evy) * Math.min(1, 4.8 * dt);
               erot = rot;
             }
           }
