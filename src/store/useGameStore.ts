@@ -2218,7 +2218,15 @@ export const useGameStore = create<GameState & GameActions>()(
             },
             world: {
               ...s.world,
-              enemies: s.world.enemies.filter((e) => e.id !== enemyId),
+              enemies: s.world.enemies
+                .filter((e) => e.id !== enemyId)
+                .map((e) => {
+                  const dDist = Math.hypot(e.x - enemy.x, e.y - enemy.y);
+                  if (dDist < 800) {
+                    return { ...e, isAggroed: true, aggroTimer: Math.max(e.aggroTimer || 0, 25) };
+                  }
+                  return e;
+                }),
               floatingLoot: [...s.world.floatingLoot, ...salvageDrops],
             },
           }));
@@ -2231,9 +2239,16 @@ export const useGameStore = create<GameState & GameActions>()(
         set((state) => ({
           world: {
             ...state.world,
-            enemies: state.world.enemies.map((e) =>
-              e.id === enemyId ? { ...e, hull, shield, stunDuration: newStun } : e
-            ),
+            enemies: state.world.enemies.map((e) => {
+              if (e.id === enemyId) {
+                return { ...e, hull, shield, stunDuration: newStun, isAggroed: true, aggroTimer: 25 };
+              }
+              const dDist = Math.hypot(e.x - enemy.x, e.y - enemy.y);
+              if (dDist < 750) {
+                return { ...e, isAggroed: true, aggroTimer: Math.max(e.aggroTimer || 0, 20) };
+              }
+              return e;
+            }),
           },
         }));
 

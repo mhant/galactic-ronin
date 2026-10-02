@@ -1561,13 +1561,47 @@ export class GameEngine {
         continue;
       }
 
+      // Determine if enemy is aggroed / alerted
+      let isAggroed = Boolean(enemy.isAggroed || (enemy.aggroTimer !== undefined && enemy.aggroTimer > 0) || distToPlayer < enemy.aggroDistance);
+      let aggroTimer = enemy.aggroTimer || 0;
+
+      // If damaged (hull or shields lower than max), automatically aggro and retaliate
+      if (enemy.hull < (enemy.maxHull || 100) || (enemy.maxShield > 0 && enemy.shield < enemy.maxShield)) {
+        isAggroed = true;
+        aggroTimer = Math.max(aggroTimer, 25);
+      }
+
+      // If player is within natural detection range, stay aggroed
       if (distToPlayer < enemy.aggroDistance) {
+        isAggroed = true;
+        aggroTimer = Math.max(aggroTimer, 15);
+      } else if (isAggroed) {
+        // Count down aggro timer when beyond natural detection range
+        aggroTimer = Math.max(0, aggroTimer - dt);
+        if (aggroTimer <= 0 || distToPlayer > 3500) {
+          isAggroed = false;
+        }
+      }
+
+      if (isAggroed) {
         isAnyEnemyEngaged = true;
+
+        // Alert nearby squadmates within 750px so they join the attack
+        for (let sIdx = 0; sIdx < survivingEnemies.length; sIdx++) {
+          const squadMate = survivingEnemies[sIdx];
+          if (squadMate.id !== enemy.id && !squadMate.isAggroed) {
+            const squadDist = Math.hypot(squadMate.x - enemy.x, squadMate.y - enemy.y);
+            if (squadDist < 750) {
+              squadMate.isAggroed = true;
+              squadMate.aggroTimer = Math.max(squadMate.aggroTimer || 0, 20);
+            }
+          }
+        }
 
         // 1. Aim towards player with smooth turning
         const targetAngle = Math.atan2(newY - enemy.y, newX - enemy.x);
         const angleDiff = Math.atan2(Math.sin(targetAngle - enemyRot), Math.cos(targetAngle - enemyRot));
-        const turnSpeed = enemy.type === 'PIRATE_SCOUT' ? 3.4 : 2.0;
+        const turnSpeed = enemy.type === 'PIRATE_SCOUT' ? 3.8 : 2.4;
         enemyRot += Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), turnSpeed * dt);
 
         // 2. Dogfighting tactics & engagement distance based on ship category
@@ -1579,8 +1613,13 @@ export class GameEngine {
 
         const minPlayerDist = playerHitRadius + Math.max(55, 38 * (enemy.scale || 1.0)) + 60;
         const preferredDist = Math.max(minPlayerDist + 80, isCapital ? 540 : isCruiser ? 440 : isFrigate ? 370 : isCorvette ? 310 : 260);
-        const maxSpeed = isCapital ? 95 : isCruiser ? 120 : isFrigate ? 140 : isCorvette ? 160 : 185;
-        const accelRate = isCapital ? 1.8 : isCruiser ? 2.3 : isFrigate ? 2.8 : 3.6;
+        
+        // Base cruising speed and fast long-range intercept pursuit speed
+        const baseSpeed = isCapital ? 110 : isCruiser ? 140 : isFrigate ? 165 : isCorvette ? 190 : 220;
+        // When far away, boost speed up to 2.2x to rapidly close distance and retaliate
+        const interceptBoost = distToPlayer > preferredDist + 120 ? Math.min(2.2, 1.0 + (distToPlayer - preferredDist) / 320) : 1.0;
+        const maxSpeed = baseSpeed * interceptBoost;
+        const accelRate = (isCapital ? 2.2 : isCruiser ? 2.8 : isFrigate ? 3.4 : 4.2) * (distToPlayer > preferredDist + 120 ? 1.5 : 1.0);
 
         // Strafe direction: alternate clockwise / counter-clockwise based on enemy index
         const strafeSign = (index % 2 === 0) ? 1 : -1;
@@ -1639,17 +1678,17 @@ export class GameEngine {
           evy = (evy / curEnemySpeed) * maxAllowedSpeed;
         }
 
-        // 5. Predictive Aim & Fire Weapon (Balanced combat: easy in 1v1, challenging in swarms)
-        const maxFireRange = isCapital ? 560 : isCruiser ? 480 : 420;
-        const laserSpeed = isCapital ? 560 : isCruiser ? 520 : 480;
+        // 5. Predictive Aim & Fire Weapon (Retaliates immediately at long range when aggroed)
+        const maxFireRange = isCapital ? 750 : isCruiser ? 680 : isFrigate ? 620 : 560;
+        const laserSpeed = isCapital ? 620 : isCruiser ? 580 : 540;
 
         // Predictive target intercept calculation with slight natural aim variance
-        const leadTime = Math.min(0.8, distToPlayer / laserSpeed);
+        const leadTime = Math.min(1.2, distToPlayer / laserSpeed);
         const predTargetX = newX + vx * leadTime * 0.75;
         const predTargetY = newY + vy * leadTime * 0.75;
         const fireAngle = Math.atan2(predTargetY - enemy.y, predTargetX - enemy.x);
         const aimDiff = Math.abs(Math.atan2(Math.sin(fireAngle - enemyRot), Math.cos(fireAngle - enemyRot)));
-        const isFacingPlayer = aimDiff < 0.48;
+        const isFacingPlayer = aimDiff < 0.52;
 
         if (distToPlayer < maxFireRange && isFacingPlayer && fireCooldown <= 0) {
           fireCooldown = isCapital ? 2.2 : isCruiser ? 2.0 : isFrigate ? 1.9 : 1.7;
@@ -1661,6 +1700,7 @@ export class GameEngine {
           const spread = (Math.random() - 0.5) * 0.08;
           const shotAngle = fireAngle + spread;
           const perp = shotAngle + Math.PI / 2;
+          const projLifetime = Math.max(1.8, (distToPlayer + 220) / laserSpeed);
 
           if (isCapital) {
             // Quad heavy plasma battery salvo
@@ -1673,23 +1713,23 @@ export class GameEngine {
                 vx: Math.cos(shotAngle) * laserSpeed,
                 vy: Math.sin(shotAngle) * laserSpeed,
                 damage: boltDamage,
-                lifetime: 1.8,
+                lifetime: projLifetime,
                 color: laserColor,
               });
             });
 
             // Occasional secondary torpedo launch only from apex capital battleships
-            if (enemy.threatLevel === 'STRONGER' && Math.random() < 0.20 && distToPlayer < 550) {
+            if (enemy.threatLevel === 'STRONGER' && Math.random() < 0.20 && distToPlayer < 650) {
               state.addProjectile({
                 id: `p_enemy_torp_${Date.now()}_${Math.random()}`,
                 owner: 'ENEMY',
                 type: 'TORPEDO',
                 x: enemy.x + Math.cos(shotAngle) * 28,
                 y: enemy.y + Math.sin(shotAngle) * 28,
-                vx: Math.cos(shotAngle) * 320,
-                vy: Math.sin(shotAngle) * 320,
+                vx: Math.cos(shotAngle) * 340,
+                vy: Math.sin(shotAngle) * 340,
                 damage: 32,
-                lifetime: 3.0,
+                lifetime: Math.max(3.0, (distToPlayer + 200) / 340),
                 color: '#A855F7',
               });
             }
@@ -1704,7 +1744,7 @@ export class GameEngine {
                 vx: Math.cos(shotAngle) * laserSpeed,
                 vy: Math.sin(shotAngle) * laserSpeed,
                 damage: boltDamage,
-                lifetime: 1.6,
+                lifetime: projLifetime,
                 color: laserColor,
               });
             });
@@ -1718,7 +1758,7 @@ export class GameEngine {
               vx: Math.cos(shotAngle) * laserSpeed,
               vy: Math.sin(shotAngle) * laserSpeed,
               damage: Math.round(boltDamage * 1.2),
-              lifetime: 1.5,
+              lifetime: projLifetime,
               color: laserColor,
             });
           }
@@ -1770,6 +1810,8 @@ export class GameEngine {
         fireCooldown,
         shield: newShield,
         stunDuration: 0,
+        isAggroed,
+        aggroTimer,
       });
     }
 

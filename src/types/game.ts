@@ -205,6 +205,8 @@ export interface Enemy {
   powerDelta?: number;
   threatLevel?: 'WEAKER' | 'EVEN' | 'STRONGER';
   threatColor?: string;
+  isAggroed?: boolean;
+  aggroTimer?: number;
 }
 
 export interface ShipClassDefinition {
