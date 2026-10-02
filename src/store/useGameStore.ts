@@ -291,20 +291,20 @@ export function createScaledEnemy(
   const power = Math.round(playerPower * factor);
 
   // Threat classification & range colors:
-  // Orange: -30% to -5% (weaker)
-  // Red: -5% to +5% (even/matched)
-  // Electric Violet / Purple: +5% to +15% (apex / stronger)
+  // Yellow / Amber: -30% to -5% (weaker, a bit smaller than player)
+  // Purple / Violet: -5% to +5% (even/matched, about same size as player)
+  // Red / Crimson: +5% to +15% (apex / strongest / toughest, way bigger)
   let threatLevel: 'WEAKER' | 'EVEN' | 'STRONGER' = 'EVEN';
-  let threatColor = '#EF4444';
+  let threatColor = '#A855F7'; // Purple (Even / Matched)
   if (factor < 0.95) {
     threatLevel = 'WEAKER';
-    threatColor = '#F97316'; // Vibrant Orange
+    threatColor = '#FBBF24'; // Yellow (Weaker, a bit smaller)
   } else if (factor > 1.05) {
     threatLevel = 'STRONGER';
-    threatColor = '#A855F7'; // Electric Ultraviolet / Purple
+    threatColor = '#EF4444'; // Red (Toughest Apex, way bigger)
   } else {
     threatLevel = 'EVEN';
-    threatColor = '#EF4444'; // Red
+    threatColor = '#A855F7'; // Purple (Matched, about same size)
   }
 
   // 1. Determine Enemy Tier & Naval Category (scales with player's ship class up to tier 100)
@@ -360,28 +360,36 @@ export function createScaledEnemy(
     armorRating = 0;
   }
 
-  // Ship visual size directly scales with factor relative to player's ship scale:
-  // - Weaker / Yellow / Orange (factor 0.70 to 0.95): visibly 5% to 30% smaller than player
-  // - Matched / Red (factor 0.95 to 1.05): identical in scale to player
-  // - Apex / Purple (factor 1.05 to 1.15): visibly 5% to 15% larger than player
+  // Ship visual sizing:
+  // - Yellow (Weaker -30% to -5%): visibly a bit smaller than player (0.85x to 0.94x)
+  // - Purple (Matched -5% to +5%): about same size as player (0.98x to 1.05x)
+  // - Red (Apex/Toughest +5% to +15%): way bigger than player (1.40x to 1.75x)
   const playerScale = playerTier <= 22 ? 1.0 : (1.0 + (playerTier - 22) * 0.008);
-  const enemyScale = Number((playerScale * factor).toFixed(2));
+  let scaleFactor = 1.0;
+  if (threatLevel === 'WEAKER') {
+    scaleFactor = 0.85 + ((factor - 0.70) / 0.25) * 0.09;
+  } else if (threatLevel === 'STRONGER') {
+    scaleFactor = 1.40 + ((factor - 1.05) / 0.10) * 0.35;
+  } else {
+    scaleFactor = 0.98 + ((factor - 0.95) / 0.10) * 0.07;
+  }
+  const enemyScale = Number((playerScale * scaleFactor).toFixed(2));
 
   // 2. Streamlined HP & Shield Scaling with Difficulty Modifier
   // Calibrated volleys needed:
-  // - Orange (-30% to -5%): 4.5 to 6.5 volleys (tough enough to survive auto-turrets, requires player shooting)
-  // - Red (-5% to +5%): 7.0 to 9.5 volleys (~2.5s of focused dogfight)
-  // - Purple (+5% to +15%): 10.0 to 14.0 volleys (challenging mini-boss dogfight)
+  // - Yellow (-30% to -5%): 4.5 to 6.5 volleys
+  // - Purple (-5% to +5%): 7.5 to 10.0 volleys (~2.5s of focused dogfight)
+  // - Red (+5% to +15%): 12.0 to 16.5 volleys (toughest apex dreadnoughts)
   const volleyMultiplier = weaponLevel >= 5 ? 1.79 : weaponLevel >= 4 ? 1.4 : weaponLevel >= 3 ? 1.35 : weaponLevel >= 2 ? 1.2 : 1.0;
   const expectedVolleyDmg = (45 + weaponPower * 12) * (1 + (weaponLevel - 1) * 0.25) * volleyMultiplier;
 
-  let volleysNeeded = 7.5;
+  let volleysNeeded = 8.0;
   if (threatLevel === 'WEAKER') {
     volleysNeeded = 4.5 + ((factor - 0.70) / 0.25) * 2.0;
   } else if (threatLevel === 'STRONGER') {
-    volleysNeeded = 10.0 + ((factor - 1.05) / 0.10) * 4.0;
+    volleysNeeded = 12.0 + ((factor - 1.05) / 0.10) * 4.5;
   } else {
-    volleysNeeded = 7.0 + ((factor - 0.95) / 0.10) * 2.5;
+    volleysNeeded = 7.5 + ((factor - 0.95) / 0.10) * 2.5;
   }
 
   const difficulty = difficultyOverride || 'EASY';

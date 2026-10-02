@@ -1693,11 +1693,10 @@ export class GameEngine {
         if (distToPlayer < maxFireRange && isFacingPlayer && fireCooldown <= 0) {
           fireCooldown = isCapital ? 2.2 : isCruiser ? 2.0 : isFrigate ? 1.9 : 1.7;
 
-          // Damage calibrated with difficulty multiplier (Easy: 1.0x, Normal: 1.5x, Hard: 2.5x, Extreme: 5.0x)
           const threatMult = enemy.threatLevel === 'STRONGER' ? 1.15 : enemy.threatLevel === 'WEAKER' ? 0.85 : 1.0;
           const { dmgMult } = getDifficultyMultipliers(state.difficulty || 'EASY');
           const boltDamage = Math.round((isCapital ? 8 : isCruiser ? 9 : isFrigate ? 8 : 7) * threatMult * dmgMult);
-          const laserColor = enemy.threatColor || (enemy.threatLevel === 'STRONGER' ? '#A855F7' : enemy.threatLevel === 'WEAKER' ? '#F97316' : '#FF3366');
+          const laserColor = enemy.threatColor || (enemy.threatLevel === 'STRONGER' ? '#EF4444' : enemy.threatLevel === 'WEAKER' ? '#FBBF24' : '#A855F7');
           const spread = (Math.random() - 0.5) * 0.08;
           const shotAngle = fireAngle + spread;
           const perp = shotAngle + Math.PI / 2;
@@ -2239,8 +2238,14 @@ export class GameEngine {
         const distToForm = Math.hypot(targetFormX - ex, targetFormY - ey);
         const distToPlayer = Math.hypot(newX - ex, newY - ey);
 
+        // Dynamic viewport half-dimensions in world space
+        const currentEngineZoom = Math.max(0.15, this.currentZoom);
+        const halfVw = (this.canvas.width / 2) / currentEngineZoom;
+        const halfVh = (this.canvas.height / 2) / currentEngineZoom;
+        const screenDiag = Math.hypot(halfVw, halfVh);
+
         // Rubber-banding snapback if escort drifted more than 1 screen away from player
-        const maxAllowedDistance = Math.max(900, 800 / Math.max(0.25, this.currentZoom));
+        const maxAllowedDistance = screenDiag + 200;
         if (distToPlayer > maxAllowedDistance) {
           ex = targetFormX;
           ey = targetFormY;
@@ -2269,36 +2274,37 @@ export class GameEngine {
         const desiredFollowSpeed = Math.min(maxFollowSpeed, Math.max(playerSpeed * 1.3, distToForm * 5.8));
         const formMoveAngle = Math.atan2(targetFormY - ey, targetFormX - ex);
 
-        // Specialty 1: Auto-Mining Barge (Follows player fleet, collects any visible loot on screen, and mines visible asteroids)
+        // Specialty 1: Auto-Mining Barge (Follows player fleet, collects ANY visible loot on screen, and mines visible asteroids)
         if (escort.type === 'MINING_BARGE') {
-          // Screen-wide reach for mining and collecting visible items
-          const screenRadius = Math.max(950, 850 / Math.max(0.25, this.currentZoom));
-
-          // 1. Priority A: Search for ANY visible floating loot on screen (Ore, Cargo, Credits, Missiles, Fuel, Repair)
+          // 1. Priority A: Search for ALL visible floating loot pods on screen (Ore, Cargo, Credits, Missiles, Fuel, Repair)
           const floatingLoots = world.floatingLoot || [];
+          const onScreenLoots = floatingLoots.filter((loot) =>
+            Math.abs(loot.x - newX) <= halfVw + 120 && Math.abs(loot.y - newY) <= halfVh + 120
+          );
+
           let nearestLoot: FloatingLoot | null = null;
-          let nearestLootDist = screenRadius;
-          for (const loot of floatingLoots) {
-            const dPlayer = Math.hypot(loot.x - newX, loot.y - newY);
-            const dBarge = Math.hypot(loot.x - ex, loot.y - ey);
-            if (dPlayer <= screenRadius || dBarge <= screenRadius) {
-              if (dBarge < nearestLootDist) {
-                nearestLootDist = dBarge;
-                nearestLoot = loot;
+          let minLootDist = Infinity;
+          if (onScreenLoots.length > 0) {
+            for (let lIdx = 0; lIdx < onScreenLoots.length; lIdx++) {
+              const l = onScreenLoots[lIdx];
+              const d = Math.hypot(l.x - ex, l.y - ey);
+              if (d < minLootDist) {
+                minLootDist = d;
+                nearestLoot = l;
               }
             }
           }
 
           // 2. Priority B: Search for visible asteroids to mine if no loot is currently on screen
           let closestAst: Asteroid | null = null;
-          let minAstDist = screenRadius;
+          let minAstDist = screenDiag + 80;
           if (!nearestLoot) {
             const liveAsteroids = world.asteroids || [];
             for (const ast of liveAsteroids) {
               if (ast.health > 0) {
-                const dPlayer = Math.hypot(ast.x - newX, ast.y - newY);
-                const dBarge = Math.hypot(ast.x - ex, ast.y - ey);
-                if (dPlayer <= screenRadius || dBarge <= screenRadius) {
+                const isOnScreen = Math.abs(ast.x - newX) <= halfVw + 100 && Math.abs(ast.y - newY) <= halfVh + 100;
+                if (isOnScreen) {
+                  const dBarge = Math.hypot(ast.x - ex, ast.y - ey);
                   if (dBarge < minAstDist) {
                     minAstDist = dBarge;
                     closestAst = ast;
@@ -2309,15 +2315,15 @@ export class GameEngine {
           }
 
           if (nearestLoot) {
-            // Actively navigate towards the floating loot pod to vacuum and collect it
+            // Actively navigate directly towards the floating loot pod to vacuum and collect it
             const lootAngle = Math.atan2(nearestLoot.y - ey, nearestLoot.x - ex);
             erot = lootAngle;
-            const lootSeekSpeed = Math.min(maxFollowSpeed, Math.max(playerSpeed * 1.4, 380));
-            evx += (Math.cos(lootAngle) * lootSeekSpeed - evx) * Math.min(1, 5.5 * dt);
-            evy += (Math.sin(lootAngle) * lootSeekSpeed - evy) * Math.min(1, 5.5 * dt);
+            const lootSeekSpeed = Math.min(maxFollowSpeed, Math.max(playerSpeed * 1.45, 420));
+            evx += (Math.cos(lootAngle) * lootSeekSpeed - evx) * Math.min(1, 6.5 * dt);
+            evy += (Math.sin(lootAngle) * lootSeekSpeed - evy) * Math.min(1, 6.5 * dt);
 
-            // Instant collection when in close contact with pod
-            if (nearestLootDist < 65) {
+            // Instant collection when close to pod
+            if (minLootDist < 70) {
               state.collectLoot(nearestLoot.id);
             }
           } else if (closestAst) {
@@ -3870,8 +3876,8 @@ export class GameEngine {
     for (const enemy of enemies) {
       if (enemy.x < minX || enemy.x > maxX || enemy.y < minY || enemy.y > maxY) continue;
 
-      const threatColor = enemy.threatColor || (enemy.threatLevel === 'STRONGER' ? '#A855F7' : enemy.threatLevel === 'WEAKER' ? '#F97316' : '#EF4444');
-      const threatLevel = enemy.threatLevel || (threatColor === '#A855F7' ? 'STRONGER' : threatColor === '#F97316' ? 'WEAKER' : 'EVEN');
+      const threatColor = enemy.threatColor || (enemy.threatLevel === 'STRONGER' ? '#EF4444' : enemy.threatLevel === 'WEAKER' ? '#FBBF24' : '#A855F7');
+      const threatLevel = enemy.threatLevel || (threatColor === '#EF4444' ? 'STRONGER' : threatColor === '#FBBF24' || threatColor === '#F97316' ? 'WEAKER' : 'EVEN');
       const enemyScale = enemy.scale || 1.0;
       const category = enemy.category || (enemy.type === 'OUTLAW_BOSS' ? 'BATTLESHIP' : enemy.type === 'RAIDER_CORVETTE' ? 'CRUISER' : 'SCOUT');
 
@@ -3881,9 +3887,9 @@ export class GameEngine {
       ctx.scale(enemyScale, enemyScale);
 
       // Raider Ship Hull
-      ctx.fillStyle = threatLevel === 'STRONGER' ? '#2e1065' : threatLevel === 'EVEN' ? '#250810' : '#2c1404';
+      ctx.fillStyle = threatLevel === 'STRONGER' ? '#31090f' : threatLevel === 'EVEN' ? '#22093e' : '#271804';
       ctx.strokeStyle = threatColor;
-      ctx.lineWidth = threatLevel === 'STRONGER' ? 2.5 : 2;
+      ctx.lineWidth = threatLevel === 'STRONGER' ? 2.5 : threatLevel === 'EVEN' ? 2.0 : 1.8;
 
       ctx.beginPath();
       switch (category) {
@@ -4000,7 +4006,7 @@ export class GameEngine {
       ctx.fill();
       ctx.stroke();
 
-      const glowAccent = threatLevel === 'STRONGER' ? '#C084FC' : threatLevel === 'EVEN' ? '#FF3366' : '#FB923C';
+      const glowAccent = threatLevel === 'STRONGER' ? '#EF4444' : threatLevel === 'EVEN' ? '#C084FC' : '#FBBF24';
 
       // Category-specific internal armor lines & bridge canopies
       if (category === 'COLOSSUS' || category === 'CARRIER' || category === 'BATTLESHIP') {
@@ -4170,14 +4176,14 @@ export class GameEngine {
         const barrierWidth = Number((1.2 + 3.3 * shieldPct).toFixed(1));
         const barrierAlpha = Number((0.25 + 0.65 * shieldPct).toFixed(2));
         
-        let barrierStroke = `rgba(239, 68, 68, ${barrierAlpha})`;
-        let barrierFill = `rgba(239, 68, 68, ${0.04 + 0.12 * shieldPct})`;
+        let barrierStroke = `rgba(168, 85, 247, ${barrierAlpha})`;
+        let barrierFill = `rgba(168, 85, 247, ${0.04 + 0.12 * shieldPct})`;
         if (threatLevel === 'STRONGER') {
-          barrierStroke = `rgba(168, 85, 247, ${barrierAlpha})`;
-          barrierFill = `rgba(168, 85, 247, ${0.05 + 0.14 * shieldPct})`;
+          barrierStroke = `rgba(239, 68, 68, ${barrierAlpha})`;
+          barrierFill = `rgba(239, 68, 68, ${0.05 + 0.14 * shieldPct})`;
         } else if (threatLevel === 'WEAKER') {
-          barrierStroke = `rgba(249, 115, 22, ${barrierAlpha})`;
-          barrierFill = `rgba(249, 115, 22, ${0.04 + 0.10 * shieldPct})`;
+          barrierStroke = `rgba(251, 191, 36, ${barrierAlpha})`;
+          barrierFill = `rgba(251, 191, 36, ${0.04 + 0.10 * shieldPct})`;
         }
 
         ctx.save();
