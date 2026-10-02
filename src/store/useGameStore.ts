@@ -30,18 +30,18 @@ import { SHIP_CLASSES, getShipClass, getEscortClass, getMaxEscortsForTier } from
 export const getDifficultyMultipliers = (difficulty: GameDifficulty = 'EASY') => {
   switch (difficulty) {
     case 'NORMAL':
-      // 50% harder (+50% HP & Firepower)
-      return { hpMult: 1.5, dmgMult: 1.5, bountyMult: 1.25 };
+      // +50% harder than easy
+      return { hpMult: 1.0, dmgMult: 1.0, bountyMult: 1.25 };
     case 'HARD':
-      // 100% harder (+100% HP & Firepower -> 2.0x base)
-      return { hpMult: 2.0, dmgMult: 2.0, bountyMult: 1.6 };
+      // +100% harder than easy
+      return { hpMult: 1.4, dmgMult: 1.4, bountyMult: 1.6 };
     case 'EXTREME':
-      // 200% harder (+200% HP & Firepower -> 3.0x base)
-      return { hpMult: 3.0, dmgMult: 2.5, bountyMult: 2.2 };
+      // +200% harder than easy
+      return { hpMult: 2.0, dmgMult: 1.8, bountyMult: 2.2 };
     case 'EASY':
     default:
-      // Base Easy (1.0x HP & 1.0x Firepower)
-      return { hpMult: 1.0, dmgMult: 1.0, bountyMult: 1.0 };
+      // Relaxed & approachable Easy mode (quicker kills, lower enemy damage)
+      return { hpMult: 0.65, dmgMult: 0.65, bountyMult: 1.0 };
   }
 };
 import { getMineral, getRandomMineralForSector } from '../data/minerals';
@@ -384,13 +384,13 @@ export function createScaledEnemy(
   const volleyMultiplier = weaponLevel >= 5 ? 1.79 : weaponLevel >= 4 ? 1.4 : weaponLevel >= 3 ? 1.35 : weaponLevel >= 2 ? 1.2 : 1.0;
   const expectedVolleyDmg = (45 + weaponPower * 12) * (1 + (weaponLevel - 1) * 0.25) * volleyMultiplier;
 
-  let volleysNeeded = 8.0;
+  let volleysNeeded = 6.0;
   if (threatLevel === 'WEAKER') {
-    volleysNeeded = 4.5 + ((factor - 0.70) / 0.25) * 2.0;
+    volleysNeeded = 3.0 + ((factor - 0.70) / 0.25) * 1.5;
   } else if (threatLevel === 'STRONGER') {
-    volleysNeeded = 12.0 + ((factor - 1.05) / 0.10) * 4.5;
+    volleysNeeded = 9.0 + ((factor - 1.05) / 0.10) * 3.5;
   } else {
-    volleysNeeded = 7.5 + ((factor - 0.95) / 0.10) * 2.5;
+    volleysNeeded = 5.5 + ((factor - 0.95) / 0.10) * 2.0;
   }
 
   const difficulty = difficultyOverride || (typeof useGameStore !== 'undefined' && useGameStore.getState ? useGameStore.getState().difficulty : 'EASY') || 'EASY';
