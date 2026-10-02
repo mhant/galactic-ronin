@@ -303,20 +303,22 @@ export function getShipClass(tier: number): ShipClassDefinition {
 }
 
 export function getMaxEscortsForTier(tier: number): number {
-  if (tier >= 90) return 30;
-  if (tier >= 80) return 26;
-  if (tier >= 70) return 24;
-  if (tier >= 60) return 22;
-  if (tier >= 50) return 20;
-  if (tier >= 40) return 18;
+  if (tier >= 100) return 50;
+  if (tier >= 90) return 42;
+  if (tier >= 80) return 36;
+  if (tier >= 70) return 32;
+  if (tier >= 60) return 28;
+  if (tier >= 50) return 24;
+  if (tier >= 40) return 20;
   if (tier >= 30) return 16;
-  if (tier >= 22) return 14;
-  if (tier >= 16) return 10;
-  if (tier >= 13) return 8;
-  if (tier >= 10) return 6;
-  if (tier >= 8) return 4;
-  if (tier >= 6) return 2;
-  return 0;
+  if (tier >= 20) return 12;
+  if (tier >= 15) return 10;
+  if (tier >= 10) return 8;
+  if (tier >= 8) return 6;
+  if (tier >= 6) return 4;
+  if (tier >= 4) return 3;
+  if (tier >= 2) return 2;
+  return 1; // Tier 1 starts with 1 wingman escort slot!
 }
 
 // Full 10 Escort Ship Classes Catalog (Specialties start at 3rd escort, skipping at least 1 slot)

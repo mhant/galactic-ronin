@@ -1459,10 +1459,12 @@ export class GameEngine {
     }
 
     // 8. Floating Loot Magnet & Pickup (Player & Player Escorts)
-    const TRACTOR_RANGE = 220;
-    const PICKUP_RANGE = 44;
-    const ESCORT_TRACTOR_RANGE = 300;
-    const ESCORT_PICKUP_RANGE = 48;
+    // Scale tractor beam range and magnetic pull strength proportionally as the ship grows larger
+    const tierTractorScale = 1.0 + (playerTier - 1) * 0.05; // +5% range & pull per tier
+    const TRACTOR_RANGE = 220 * tierTractorScale;
+    const PICKUP_RANGE = 44 * (1.0 + (playerTier - 1) * 0.035);
+    const ESCORT_TRACTOR_RANGE = 320;
+    const ESCORT_PICKUP_RANGE = 50;
 
     const floatingLoots = world.floatingLoot || [];
     let hasExpiredLoot = false;
@@ -1495,9 +1497,10 @@ export class GameEngine {
 
       const activeTractorRange = isEscortCollecting ? ESCORT_TRACTOR_RANGE : TRACTOR_RANGE;
       if (closestDist < activeTractorRange && closestDist > 0.001) {
-        // Magnetic tractor beam pull
+        // Magnetic tractor beam pull (stronger gravity pull as ship gets larger)
         const pullAngle = Math.atan2(targetPullY - ly, targetPullX - lx);
-        const pullSpeed = (isEscortCollecting ? 310 : 260) * (1 - closestDist / activeTractorRange);
+        const basePullSpeed = isEscortCollecting ? 320 : 270 * tierTractorScale;
+        const pullSpeed = basePullSpeed * Math.min(3.0, 1.25 - (closestDist / activeTractorRange) * 0.5);
         loot.vx = (loot.vx || 0) + Math.cos(pullAngle) * pullSpeed * dt;
         loot.vy = (loot.vy || 0) + Math.sin(pullAngle) * pullSpeed * dt;
 

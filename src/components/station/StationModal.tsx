@@ -21,6 +21,7 @@ import {
   Award,
   Users,
   ChevronRight,
+  Trash2,
 } from 'lucide-react';
 
 export const StationModal: React.FC = () => {
@@ -52,6 +53,7 @@ export const StationModal: React.FC = () => {
   const buyTorpedoAmmo = useGameStore((state) => state.buyTorpedoAmmo);
   const buyEmpGenerator = useGameStore((state) => state.buyEmpGenerator);
   const buyEscortShip = useGameStore((state) => state.buyEscortShip);
+  const sellEscortShip = useGameStore((state) => state.sellEscortShip);
   const repairEscorts = useGameStore((state) => state.repairEscorts);
   const jumpSector = useGameStore((state) => state.jumpSector);
 
@@ -896,7 +898,7 @@ export const StationModal: React.FC = () => {
                 </div>
               </div>
 
-              {/* 5. Escort Fleet Hangar (All 10 Escort Classes) */}
+              {/* 5. Escort Fleet Hangar (Armada Management & Recruitment) */}
               <div className="bg-slate-950/70 border border-purple-500/30 rounded-xl p-3.5 space-y-3">
                 <div className="flex items-center justify-between border-b border-purple-500/20 pb-1.5">
                   <div className="flex items-center space-x-2">
@@ -910,6 +912,57 @@ export const StationModal: React.FC = () => {
                   </span>
                 </div>
 
+                {/* 5A. Active Deployed Escorts List & Decommission/Sell */}
+                {escorts.length > 0 && (
+                  <div className="space-y-2 bg-slate-900/60 p-2.5 rounded-xl border border-purple-500/20">
+                    <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                      <span>Active Armada Escorts</span>
+                      <span className="text-[10px] text-slate-400">70% Buyback Value Refund</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {escorts.map((esc, idx) => {
+                        const def = ESCORT_CLASSES.find((c) => c.type === esc.type);
+                        const refundAmount = def ? Math.round(def.cost * 0.7) : 250;
+                        return (
+                          <div
+                            key={esc.id || idx}
+                            className="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 flex items-center justify-between gap-2"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center space-x-1.5">
+                                <span
+                                  className="w-2 h-2 rounded-full shrink-0"
+                                  style={{ backgroundColor: def?.color || '#A855F7' }}
+                                />
+                                <span className="text-xs font-bold text-white truncate">
+                                  {esc.name}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-mono mt-0.5 flex items-center gap-2">
+                                <span>HP: {Math.round(esc.hull)}/{esc.maxHull}</span>
+                                <span>•</span>
+                                <span>Shield: {Math.round(esc.shield)}/{esc.maxShield}</span>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => sellEscortShip(esc.id)}
+                              className="px-2.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-[11px] font-bold transition-all flex items-center gap-1 shrink-0 cursor-pointer"
+                              title="Decommission escort ship to free up hangar capacity"
+                            >
+                              <Trash2 className="w-3 h-3 text-rose-400" />
+                              <span>Sell (+{refundAmount.toLocaleString()} CR)</span>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 5B. Escort Recruitment Catalog */}
+                <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wider pt-1">
+                  Armada Recruitment & Deployment Catalog
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {ESCORT_CLASSES.map((escortDef) => {
                     const isTierUnlocked = shipTier >= escortDef.minShipTier;

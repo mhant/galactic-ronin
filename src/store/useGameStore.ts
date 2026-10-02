@@ -473,6 +473,7 @@ interface GameActions {
   // Escort Armada Fleet Actions
   toggleArmadaStance: () => void;
   buyEscortShip: (type: EscortType) => boolean;
+  sellEscortShip: (escortId: string) => number;
   repairEscorts: () => boolean;
   dismissEscort: (escortId: string) => void;
   updateWorldEscorts: (escorts: EscortShip[]) => void;
@@ -590,7 +591,7 @@ const getInitialState = () => ({
     beamTargetId: null as string | null,
     armadaStance: 'DEFEND' as EscortStance,
     escorts: [] as EscortShip[],
-    maxEscorts: 0,
+    maxEscorts: getMaxEscortsForTier(1),
   },
   world: {
     currentSectorId: 'Sector-01',
@@ -1738,6 +1739,40 @@ export const useGameStore = create<GameState & GameActions>()(
         return true;
       },
 
+      sellEscortShip: (escortId: string) => {
+        const { ship, world } = get();
+        const escort =
+          (ship.escorts || []).find((e) => e.id === escortId) ||
+          (world.escorts || []).find((e) => e.id === escortId && e.owner === 'PLAYER');
+        if (!escort) return 0;
+
+        const escortDef = getEscortClass(escort.type);
+        const refundCredits = Math.round(escortDef.cost * 0.7);
+
+        const updatedShipEscorts = (ship.escorts || []).filter((e) => e.id !== escortId);
+        const updatedWorldEscorts = (world.escorts || []).filter((e) => e.id !== escortId);
+
+        SoundManager.playCash();
+
+        set((state) => ({
+          player: {
+            ...state.player,
+            credits: state.player.credits + refundCredits,
+          },
+          ship: {
+            ...state.ship,
+            escorts: updatedShipEscorts,
+          },
+          world: {
+            ...state.world,
+            escorts: updatedWorldEscorts,
+          },
+        }));
+
+        get().saveCurrentGame();
+        return refundCredits;
+      },
+
       repairEscorts: () => {
         const { player, ship } = get();
         const escorts = ship.escorts || [];
@@ -2261,7 +2296,7 @@ export const useGameStore = create<GameState & GameActions>()(
       },
 
       damageAsteroid: (asteroidId, rawDamage) => {
-        const { world } = get();
+        const { world, ship } = get();
         const asteroid = world.asteroids.find((a) => a.id === asteroidId);
         if (!asteroid) return { destroyed: false };
 
@@ -2269,26 +2304,55 @@ export const useGameStore = create<GameState & GameActions>()(
 
         if (newHealth <= 0) {
           SoundManager.playExplosion();
-          // Spawn generous multi-pod ore and industrial loot
-          const yieldCount = Math.max(2, Math.round(asteroid.oreYield * 1.5));
+          // Scale asteroid mineral yields with player ship tier (+18% yield per tier)
+          const playerTier = ship.shipTier || 1;
+          const tierYieldMultiplier = 1.0 + (playerTier - 1) * 0.18;
+          const totalYield = Math.max(2, Math.round(asteroid.oreYield * 1.5 * tierYieldMultiplier));
           const minDef = getMineral(asteroid.oreType);
           const drops: FloatingLoot[] = [];
-          drops.push({
-            id: `loot_ore_${Date.now()}_0_${Math.random()}`,
-            x: asteroid.x + (Math.random() - 0.5) * 20,
-            y: asteroid.y + (Math.random() - 0.5) * 20,
-            vx: (Math.random() - 0.5) * 45,
-            vy: (Math.random() - 0.5) * 45,
-            lootType: 'CARGO',
-            item: {
-              id: minDef.id,
-              name: minDef.name,
-              quantity: yieldCount,
-              avgBuyPrice: minDef.unitValue,
-              category: 'ORE',
-            },
-            lifetime: 55,
-          });
+
+          if (totalYield > 12) {
+            const numPods = Math.min(6, Math.ceil(totalYield / 8));
+            const basePerPod = Math.floor(totalYield / numPods);
+            let rem = totalYield % numPods;
+            for (let i = 0; i < numPods; i++) {
+              const qty = basePerPod + (rem > 0 ? 1 : 0);
+              if (rem > 0) rem--;
+              drops.push({
+                id: `loot_ore_${Date.now()}_${i}_${Math.random()}`,
+                x: asteroid.x + (Math.random() - 0.5) * 35,
+                y: asteroid.y + (Math.random() - 0.5) * 35,
+                vx: (Math.random() - 0.5) * 65,
+                vy: (Math.random() - 0.5) * 65,
+                lootType: 'CARGO',
+                item: {
+                  id: minDef.id,
+                  name: minDef.name,
+                  quantity: qty,
+                  avgBuyPrice: minDef.unitValue,
+                  category: 'ORE',
+                },
+                lifetime: 60,
+              });
+            }
+          } else {
+            drops.push({
+              id: `loot_ore_${Date.now()}_0_${Math.random()}`,
+              x: asteroid.x + (Math.random() - 0.5) * 20,
+              y: asteroid.y + (Math.random() - 0.5) * 20,
+              vx: (Math.random() - 0.5) * 45,
+              vy: (Math.random() - 0.5) * 45,
+              lootType: 'CARGO',
+              item: {
+                id: minDef.id,
+                name: minDef.name,
+                quantity: totalYield,
+                avgBuyPrice: minDef.unitValue,
+                category: 'ORE',
+              },
+              lifetime: 55,
+            });
+          }
 
           set((state) => ({
             world: {
@@ -2298,7 +2362,7 @@ export const useGameStore = create<GameState & GameActions>()(
             },
           }));
 
-          return { destroyed: true, oreYield: yieldCount, oreType: asteroid.oreType };
+          return { destroyed: true, oreYield: totalYield, oreType: asteroid.oreType };
         }
 
         set((state) => ({
