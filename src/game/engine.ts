@@ -505,6 +505,11 @@ export class GameEngine {
     // Smooth camera zoom interpolation
     this.currentZoom += (this.targetZoom - this.currentZoom) * Math.min(1, 3.0 * dt);
 
+    // Viewport dimensions in world space
+    const currentEngineZoom = Math.max(0.15, this.currentZoom || 1.0);
+    const halfVw = (this.canvas.width / 2) / currentEngineZoom;
+    const halfVh = (this.canvas.height / 2) / currentEngineZoom;
+
     // 1. Power & Upgrade modifiers
     const engineLvl = ship.engineLevel || 1;
     const weaponLvl = ship.weaponLevel || 1;
@@ -1074,6 +1079,8 @@ export class GameEngine {
         let closestEnemyDist = 420;
 
         for (const e of enemies) {
+          const isEnOnScreen = Math.abs(e.x - newX) <= halfVw + 30 && Math.abs(e.y - newY) <= halfVh + 30;
+          if (!isEnOnScreen) continue;
           const d = Math.hypot(e.x - newX, e.y - newY);
           if (d < closestEnemyDist) {
             closestEnemyDist = d;
@@ -1084,6 +1091,8 @@ export class GameEngine {
         if (targetX === null) {
           for (const esc of state.world.escorts || []) {
             if (esc.owner === 'ENEMY') {
+              const isEscOnScreen = Math.abs(esc.x - newX) <= halfVw + 30 && Math.abs(esc.y - newY) <= halfVh + 30;
+              if (!isEscOnScreen) continue;
               const d = Math.hypot(esc.x - newX, esc.y - newY);
               if (d < closestEnemyDist) {
                 closestEnemyDist = d;
@@ -1120,12 +1129,14 @@ export class GameEngine {
     this.targetedAsteroid = null;
 
     if (this.miningActive) {
-      // Find closest asteroid within mining range (250px)
+      // Find closest asteroid within mining range (260px) that is strictly on screen
       const MINING_RANGE = 260;
       let closestAst: Asteroid | null = null;
       let closestDist = Infinity;
 
       for (const ast of world.asteroids) {
+        const isAstOnScreen = Math.abs(ast.x - newX) <= halfVw + ast.radius && Math.abs(ast.y - newY) <= halfVh + ast.radius;
+        if (!isAstOnScreen) continue;
         const dist = Math.hypot(newX - ast.x, newY - ast.y) - ast.radius;
         if (dist < MINING_RANGE && dist < closestDist) {
           closestDist = dist;
@@ -1185,6 +1196,8 @@ export class GameEngine {
         let closestDist = 900;
         let targetTorpPos: { x: number; y: number } | null = null;
         for (const e of liveEnemiesForTorp) {
+          const isEnOnScreen = Math.abs(e.x - newX) <= halfVw + 30 && Math.abs(e.y - newY) <= halfVh + 30;
+          if (!isEnOnScreen) continue;
           const d = Math.hypot(e.x - proj.x, e.y - proj.y);
           if (d < closestDist) {
             closestDist = d;
@@ -1193,6 +1206,8 @@ export class GameEngine {
         }
         if (!targetTorpPos) {
           for (const esc of enemyEscortsForTorp) {
+            const isEscOnScreen = Math.abs(esc.x - newX) <= halfVw + 30 && Math.abs(esc.y - newY) <= halfVh + 30;
+            if (!isEscOnScreen) continue;
             const d = Math.hypot(esc.x - proj.x, esc.y - proj.y);
             if (d < closestDist) {
               closestDist = d;
@@ -1282,13 +1297,27 @@ export class GameEngine {
     });
 
     // Check collisions for active projectiles
+    const screenMinX = newX - halfVw - 10;
+    const screenMaxX = newX + halfVw + 10;
+    const screenMinY = newY - halfVh - 10;
+    const screenMaxY = newY + halfVh + 10;
+
     for (const proj of activeProjectiles) {
       if (proj.lifetime <= 0) continue;
 
+      // Projectile immediately disappears when going offscreen
+      if (proj.x < screenMinX || proj.x > screenMaxX || proj.y < screenMinY || proj.y > screenMaxY) {
+        proj.lifetime = 0;
+        continue;
+      }
+
       if (proj.owner === 'PLAYER') {
-        // A. Check hits on regular enemies
+        // A. Check hits on regular enemies (Strictly on-screen)
         const currentEnemies = useGameStore.getState().world.enemies;
         for (const enemy of currentEnemies) {
+          const isEnemyOnScreen = Math.abs(enemy.x - newX) <= halfVw + 30 && Math.abs(enemy.y - newY) <= halfVh + 30;
+          if (!isEnemyOnScreen) continue;
+
           const cat = enemy.category || (enemy.type === 'OUTLAW_BOSS' ? 'BATTLESHIP' : enemy.type === 'RAIDER_CORVETTE' ? 'CRUISER' : 'SCOUT');
           const eBox = getEnemyBoundingBox(cat, enemy.scale || 1.0);
           const margin = proj.type === 'TORPEDO' ? 26 : (proj.radius || 4);
@@ -1301,6 +1330,7 @@ export class GameEngine {
               this.spawnExplosionParticles(proj.x, proj.y, '#FB923C', 32);
               const BLAST_RADIUS = 130;
               for (const e of currentEnemies) {
+                if (Math.abs(e.x - newX) > halfVw + 30 || Math.abs(e.y - newY) > halfVh + 30) continue;
                 const ed = Math.hypot(proj.x - e.x, proj.y - e.y);
                 if (ed < BLAST_RADIUS) {
                   const dmg = Math.round(180 * (1 - ed / (BLAST_RADIUS * 1.3)));
@@ -1313,6 +1343,7 @@ export class GameEngine {
               const worldEscorts = useGameStore.getState().world.escorts || [];
               for (const esc of worldEscorts) {
                 if (esc.owner === 'ENEMY') {
+                  if (Math.abs(esc.x - newX) > halfVw + 30 || Math.abs(esc.y - newY) > halfVh + 30) continue;
                   const ed = Math.hypot(proj.x - esc.x, proj.y - esc.y);
                   if (ed < BLAST_RADIUS) {
                     const dmg = Math.round(180 * (1 - ed / (BLAST_RADIUS * 1.3)));
@@ -1324,6 +1355,7 @@ export class GameEngine {
                 }
               }
               for (const ast of world.asteroids) {
+                if (Math.abs(ast.x - newX) > halfVw + ast.radius + 15 || Math.abs(ast.y - newY) > halfVh + ast.radius + 15) continue;
                 const ad = Math.hypot(proj.x - ast.x, proj.y - ast.y);
                 if (ad < BLAST_RADIUS + ast.radius) {
                   state.damageAsteroid(ast.id, 140);
@@ -1343,10 +1375,13 @@ export class GameEngine {
         }
         if (proj.lifetime <= 0) continue;
 
-        // B. Check hits on enemy escorts
+        // B. Check hits on enemy escorts (Strictly on-screen)
         const currentWorldEscorts = useGameStore.getState().world.escorts || [];
         for (const esc of currentWorldEscorts) {
           if (esc.owner !== 'ENEMY') continue;
+          const isEscOnScreen = Math.abs(esc.x - newX) <= halfVw + 30 && Math.abs(esc.y - newY) <= halfVh + 30;
+          if (!isEscOnScreen) continue;
+
           const escHl = esc.type === 'RONIN_WARMASTER' ? 24 : esc.type === 'GUNSHIP' || esc.type === 'MISSILE_CRUISER' ? 18 : 14;
           const escHw = esc.type === 'RONIN_WARMASTER' ? 18 : esc.type === 'GUNSHIP' || esc.type === 'SHIELD_PROJECTOR' ? 14 : 10;
           const escBox: OrientedBox = { halfLength: escHl, halfWidth: escHw, forwardOffset: 0 };
@@ -1358,6 +1393,7 @@ export class GameEngine {
               this.spawnExplosionParticles(proj.x, proj.y, '#FB923C', 32);
               const BLAST_RADIUS = 130;
               for (const e of currentEnemies) {
+                if (Math.abs(e.x - newX) > halfVw + 30 || Math.abs(e.y - newY) > halfVh + 30) continue;
                 const ed = Math.hypot(proj.x - e.x, proj.y - e.y);
                 if (ed < BLAST_RADIUS) {
                   const dmg = Math.round(180 * (1 - ed / (BLAST_RADIUS * 1.3)));
@@ -1369,6 +1405,7 @@ export class GameEngine {
               }
               for (const otherEsc of currentWorldEscorts) {
                 if (otherEsc.owner === 'ENEMY') {
+                  if (Math.abs(otherEsc.x - newX) > halfVw + 30 || Math.abs(otherEsc.y - newY) > halfVh + 30) continue;
                   const ed = Math.hypot(proj.x - otherEsc.x, proj.y - otherEsc.y);
                   if (ed < BLAST_RADIUS) {
                     const dmg = Math.round(180 * (1 - ed / (BLAST_RADIUS * 1.3)));
@@ -1393,8 +1430,11 @@ export class GameEngine {
         }
         if (proj.lifetime <= 0) continue;
 
-        // C. Check hits on asteroids (lasers deal reduced chipping damage, mining beam is superior!)
+        // C. Check hits on asteroids (Strictly on-screen)
         for (const ast of world.asteroids) {
+          const isAstOnScreen = Math.abs(ast.x - newX) <= halfVw + ast.radius + 15 && Math.abs(ast.y - newY) <= halfVh + ast.radius + 15;
+          if (!isAstOnScreen) continue;
+
           const dist = Math.hypot(proj.x - ast.x, proj.y - ast.y);
           if (dist < ast.radius) {
             if (proj.type === 'TORPEDO') {
@@ -1402,12 +1442,14 @@ export class GameEngine {
               this.spawnExplosionParticles(proj.x, proj.y, '#FB923C', 30);
               const BLAST_RADIUS = 110;
               for (const a of world.asteroids) {
+                if (Math.abs(a.x - newX) > halfVw + a.radius + 15 || Math.abs(a.y - newY) > halfVh + a.radius + 15) continue;
                 const ad = Math.hypot(proj.x - a.x, proj.y - a.y);
                 if (ad < BLAST_RADIUS + a.radius) {
                   state.damageAsteroid(a.id, 140);
                 }
               }
               for (const e of currentEnemies) {
+                if (Math.abs(e.x - newX) > halfVw + 30 || Math.abs(e.y - newY) > halfVh + 30) continue;
                 const ed = Math.hypot(proj.x - e.x, proj.y - e.y);
                 if (ed < BLAST_RADIUS) {
                   const res = state.damageEnemy(e.id, 120, true);
@@ -1419,6 +1461,7 @@ export class GameEngine {
               const worldEscorts = useGameStore.getState().world.escorts || [];
               for (const esc of worldEscorts) {
                 if (esc.owner === 'ENEMY') {
+                  if (Math.abs(esc.x - newX) > halfVw + 30 || Math.abs(esc.y - newY) > halfVh + 30) continue;
                   const ed = Math.hypot(proj.x - esc.x, proj.y - esc.y);
                   if (ed < BLAST_RADIUS) {
                     const dmg = Math.round(120 * (1 - ed / (BLAST_RADIUS * 1.3)));
@@ -1983,6 +2026,8 @@ export class GameEngine {
             let nearestEnemy: Enemy | null = null;
             let minDist = 480;
             for (const en of liveEnemies) {
+              const isEnOnScreen = Math.abs(en.x - newX) <= halfVw + 30 && Math.abs(en.y - newY) <= halfVh + 30;
+              if (!isEnOnScreen) continue;
               const d = Math.hypot(en.x - targetX, en.y - targetY);
               if (d < minDist) {
                 minDist = d;
@@ -2045,6 +2090,8 @@ export class GameEngine {
       let closestDist = 620;
 
       for (const e of liveEnemiesForBeam) {
+        const isEnOnScreen = Math.abs(e.x - newX) <= halfVw + 30 && Math.abs(e.y - newY) <= halfVh + 30;
+        if (!isEnOnScreen) continue;
         const d = Math.hypot(e.x - newX, e.y - newY);
         if (d < closestDist) {
           closestDist = d;
@@ -2054,6 +2101,8 @@ export class GameEngine {
 
       for (const esc of currentWorldEscorts) {
         if (esc.owner === 'ENEMY') {
+          const isEscOnScreen = Math.abs(esc.x - newX) <= halfVw + 30 && Math.abs(esc.y - newY) <= halfVh + 30;
+          if (!isEscOnScreen) continue;
           const d = Math.hypot(esc.x - newX, esc.y - newY);
           if (d < closestDist) {
             closestDist = d;
@@ -2505,9 +2554,11 @@ export class GameEngine {
           if (this.lastTargetedEnemyId) {
             const targetedEnemy = enemyMap.get(this.lastTargetedEnemyId);
             if (targetedEnemy && targetedEnemy.hull > 0) {
-              const d = Math.hypot(targetedEnemy.x - newX, targetedEnemy.y - newY);
-              if (d < 2000) {
+              const isTargetOnScreen = Math.abs(targetedEnemy.x - newX) <= halfVw + 40 && Math.abs(targetedEnemy.y - newY) <= halfVh + 40;
+              if (isTargetOnScreen) {
                 targetEnemy = { x: targetedEnemy.x, y: targetedEnemy.y, id: targetedEnemy.id };
+              } else {
+                this.lastTargetedEnemyId = null;
               }
             } else {
               this.lastTargetedEnemyId = null;
@@ -2519,9 +2570,11 @@ export class GameEngine {
           }
 
           if (!targetEnemy) {
-            // Fallback to closest enemy to player
+            // Fallback to closest on-screen enemy to player
             let minD = 1500;
             for (const en of liveEnemiesForBeam) {
+              const isEnOnScreen = Math.abs(en.x - newX) <= halfVw + 30 && Math.abs(en.y - newY) <= halfVh + 30;
+              if (!isEnOnScreen) continue;
               const d = Math.hypot(en.x - newX, en.y - newY);
               if (d < minD) {
                 minD = d;
@@ -2530,6 +2583,8 @@ export class GameEngine {
             }
             if (!targetEnemy) {
               for (const ee of liveEnemyEscorts) {
+                const isEeOnScreen = Math.abs(ee.x - newX) <= halfVw + 30 && Math.abs(ee.y - newY) <= halfVh + 30;
+                if (!isEeOnScreen) continue;
                 const d = Math.hypot(ee.x - newX, ee.y - newY);
                 if (d < minD) {
                   minD = d;
