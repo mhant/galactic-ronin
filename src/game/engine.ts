@@ -1069,39 +1069,26 @@ export class GameEngine {
       this.autoTurretCooldown = Math.max(0, this.autoTurretCooldown - dt);
       if (this.autoTurretCooldown <= 0) {
         const enemies = state.world.enemies;
-        const enemyProjectiles = state.world.projectiles.filter((p) => p.owner === 'ENEMY');
-
         let targetX: number | null = null;
         let targetY: number | null = null;
+        let closestEnemyDist = 420;
 
-        for (const ep of enemyProjectiles) {
-          const d = Math.hypot(ep.x - newX, ep.y - newY);
-          if (d < 240) {
-            targetX = ep.x;
-            targetY = ep.y;
-            break;
+        for (const e of enemies) {
+          const d = Math.hypot(e.x - newX, e.y - newY);
+          if (d < closestEnemyDist) {
+            closestEnemyDist = d;
+            targetX = e.x;
+            targetY = e.y;
           }
         }
-
         if (targetX === null) {
-          let closestEnemyDist = 280;
-          for (const e of enemies) {
-            const d = Math.hypot(e.x - newX, e.y - newY);
-            if (d < closestEnemyDist) {
-              closestEnemyDist = d;
-              targetX = e.x;
-              targetY = e.y;
-            }
-          }
-          if (targetX === null) {
-            for (const esc of state.world.escorts || []) {
-              if (esc.owner === 'ENEMY') {
-                const d = Math.hypot(esc.x - newX, esc.y - newY);
-                if (d < closestEnemyDist) {
-                  closestEnemyDist = d;
-                  targetX = esc.x;
-                  targetY = esc.y;
-                }
+          for (const esc of state.world.escorts || []) {
+            if (esc.owner === 'ENEMY') {
+              const d = Math.hypot(esc.x - newX, esc.y - newY);
+              if (d < closestEnemyDist) {
+                closestEnemyDist = d;
+                targetX = esc.x;
+                targetY = esc.y;
               }
             }
           }
@@ -1299,22 +1286,6 @@ export class GameEngine {
       if (proj.lifetime <= 0) continue;
 
       if (proj.owner === 'PLAYER') {
-        // Point-Defense Flak interception of enemy projectiles
-        if (proj.type === 'FLAK') {
-          for (const ep of activeProjectiles) {
-            if (ep.owner === 'ENEMY' && ep.lifetime > 0) {
-              const d = Math.hypot(proj.x - ep.x, proj.y - ep.y);
-              if (d < 24) {
-                proj.lifetime = 0;
-                ep.lifetime = 0;
-                this.spawnExplosionParticles(ep.x, ep.y, '#FDE047', 8);
-                break;
-              }
-            }
-          }
-          if (proj.lifetime <= 0) continue;
-        }
-
         // A. Check hits on regular enemies
         const currentEnemies = useGameStore.getState().world.enemies;
         for (const enemy of currentEnemies) {
@@ -1468,13 +1439,16 @@ export class GameEngine {
           }
         }
       } else if (proj.owner === 'ENEMY') {
-        // A. Check hits on player (Oriented hull bounding box)
+        // A. Check hits on player (Oriented hull & deflector shield bounding box with swept collision)
         const playerTier = ship.shipTier || 1;
         const playerScale = playerTier <= 22 ? 1.0 : Number((1.0 + (playerTier - 22) * 0.008).toFixed(2));
         const pBox = getPlayerBoundingBox(playerTier, playerScale);
-        const margin = proj.radius || 4;
+        const margin = Math.max(16, (proj.radius || 4) + (ship.shield > 0 ? 14 : 6));
 
-        if (isPointInOrientedBox(proj.x, proj.y, newX, newY, rot, pBox, margin)) {
+        const hitCurrent = isPointInOrientedBox(proj.x, proj.y, newX, newY, rot, pBox, margin);
+        const hitMid = isPointInOrientedBox(proj.x - proj.vx * dt * 0.5, proj.y - proj.vy * dt * 0.5, newX, newY, rot, pBox, margin);
+
+        if (hitCurrent || hitMid) {
           state.damagePlayer(proj.damage);
           proj.lifetime = 0;
           this.spawnExplosionParticles(proj.x, proj.y, '#FF3366', 12);
@@ -1485,8 +1459,12 @@ export class GameEngine {
             const escHl = esc.type === 'RONIN_WARMASTER' ? 24 : esc.type === 'GUNSHIP' || esc.type === 'MISSILE_CRUISER' ? 18 : 14;
             const escHw = esc.type === 'RONIN_WARMASTER' ? 18 : esc.type === 'GUNSHIP' || esc.type === 'SHIELD_PROJECTOR' ? 14 : 10;
             const escBox: OrientedBox = { halfLength: escHl, halfWidth: escHw, forwardOffset: 0 };
+            const escMargin = Math.max(10, (proj.radius || 4) + (esc.shield > 0 ? 8 : 4));
 
-            if (isPointInOrientedBox(proj.x, proj.y, esc.x, esc.y, esc.rotation, escBox, proj.radius || 4)) {
+            if (
+              isPointInOrientedBox(proj.x, proj.y, esc.x, esc.y, esc.rotation, escBox, escMargin) ||
+              isPointInOrientedBox(proj.x - proj.vx * dt * 0.5, proj.y - proj.vy * dt * 0.5, esc.x, esc.y, esc.rotation, escBox, escMargin)
+            ) {
               const res = state.damageEscort(esc.id, proj.damage);
               if (res.destroyed) {
                 this.spawnExplosionParticles(esc.x, esc.y, '#34D399', 22);
@@ -1571,27 +1549,36 @@ export class GameEngine {
         aggroTimer = Math.max(aggroTimer, 25);
       }
 
+      // Dynamic calculation of 2 screen lengths
+      const screenDiag = Math.hypot(this.canvas.width, this.canvas.height) / (this.currentZoom || 1.0);
+      const twoScreensDist = Math.max(3200, screenDiag * 2.0);
+
       // If player is within natural detection range, stay aggroed
       if (distToPlayer < enemy.aggroDistance) {
         isAggroed = true;
-        aggroTimer = Math.max(aggroTimer, 15);
+        aggroTimer = Math.max(aggroTimer, 18);
       } else if (isAggroed) {
-        // Count down aggro timer when beyond natural detection range
-        aggroTimer = Math.max(0, aggroTimer - dt);
-        if (aggroTimer <= 0 || distToPlayer > 3500) {
+        // Chase player continuously unless player gets more than 2 screens away
+        if (distToPlayer > twoScreensDist) {
           isAggroed = false;
+          aggroTimer = 0;
+        } else {
+          aggroTimer = Math.max(0, aggroTimer - dt);
+          if (aggroTimer <= 0 && distToPlayer > screenDiag * 1.5) {
+            isAggroed = false;
+          }
         }
       }
 
       if (isAggroed) {
         isAnyEnemyEngaged = true;
 
-        // Alert nearby squadmates within 750px so they join the attack
+        // Alert nearby squadmates within 850px so they join the attack
         for (let sIdx = 0; sIdx < survivingEnemies.length; sIdx++) {
           const squadMate = survivingEnemies[sIdx];
           if (squadMate.id !== enemy.id && !squadMate.isAggroed) {
             const squadDist = Math.hypot(squadMate.x - enemy.x, squadMate.y - enemy.y);
-            if (squadDist < 750) {
+            if (squadDist < 850) {
               squadMate.isAggroed = true;
               squadMate.aggroTimer = Math.max(squadMate.aggroTimer || 0, 20);
             }
@@ -1601,7 +1588,7 @@ export class GameEngine {
         // 1. Aim towards player with smooth turning
         const targetAngle = Math.atan2(newY - enemy.y, newX - enemy.x);
         const angleDiff = Math.atan2(Math.sin(targetAngle - enemyRot), Math.cos(targetAngle - enemyRot));
-        const turnSpeed = enemy.type === 'PIRATE_SCOUT' ? 3.8 : 2.4;
+        const turnSpeed = enemy.type === 'PIRATE_SCOUT' ? 4.2 : 2.8;
         enemyRot += Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), turnSpeed * dt);
 
         // 2. Dogfighting tactics & engagement distance based on ship category
@@ -1614,12 +1601,19 @@ export class GameEngine {
         const minPlayerDist = playerHitRadius + Math.max(55, 38 * (enemy.scale || 1.0)) + 60;
         const preferredDist = Math.max(minPlayerDist + 80, isCapital ? 540 : isCruiser ? 440 : isFrigate ? 370 : isCorvette ? 310 : 260);
         
-        // Base cruising speed and fast long-range intercept pursuit speed
-        const baseSpeed = isCapital ? 110 : isCruiser ? 140 : isFrigate ? 165 : isCorvette ? 190 : 220;
-        // When far away, boost speed up to 2.2x to rapidly close distance and retaliate
-        const interceptBoost = distToPlayer > preferredDist + 120 ? Math.min(2.2, 1.0 + (distToPlayer - preferredDist) / 320) : 1.0;
-        const maxSpeed = baseSpeed * interceptBoost;
-        const accelRate = (isCapital ? 2.2 : isCruiser ? 2.8 : isFrigate ? 3.4 : 4.2) * (distToPlayer > preferredDist + 120 ? 1.5 : 1.0);
+        // Enemy chase speed: up to 50% of the player's potential speed
+        // Player speed is much higher so player can always outrun hostiles and disengage
+        const playerTheoreticalTopSpeed = 220 + (ship.enginePower || 4) * 40 + (ship.engineLevel || 1) * 55;
+        const playerCurrentSpeed = Math.hypot(vx, vy);
+        const playerSpeedRef = Math.max(playerTheoreticalTopSpeed, playerCurrentSpeed);
+
+        const speedRatio = isCapital ? 0.30 : isCruiser ? 0.35 : isFrigate ? 0.40 : isCorvette ? 0.45 : 0.50;
+        const baseSpeed = Math.max(160, playerSpeedRef * speedRatio);
+
+        // When far away, boost pursuit up to full 50% speed
+        const interceptBoost = distToPlayer > preferredDist + 100 ? Math.min(1.25, 1.0 + (distToPlayer - preferredDist) / 400) : 1.0;
+        const maxSpeed = Math.min(playerSpeedRef * 0.52, baseSpeed * interceptBoost);
+        const accelRate = (isCapital ? 2.8 : isCruiser ? 3.4 : isFrigate ? 4.0 : 4.8) * (distToPlayer > preferredDist + 120 ? 1.3 : 1.0);
 
         // Strafe direction: alternate clockwise / counter-clockwise based on enemy index
         const strafeSign = (index % 2 === 0) ? 1 : -1;
@@ -1765,9 +1759,16 @@ export class GameEngine {
           SoundManager.playLaser(true);
         }
       } else {
-        // Idle drift when un-aggroed
-        evx *= Math.pow(0.92, dt);
-        evy *= Math.pow(0.92, dt);
+        // Un-aggroed sector patrol: smooth cruising
+        const enemyCat = enemy.category || (enemy.type === 'OUTLAW_BOSS' ? 'BATTLESHIP' : enemy.type === 'RAIDER_CORVETTE' ? 'CRUISER' : 'SCOUT');
+        const isCapital = enemyCat === 'COLOSSUS' || enemyCat === 'BATTLESHIP';
+        const isCruiser = enemyCat === 'CRUISER';
+        const isFrigate = enemyCat === 'FRIGATE';
+        const patrolSpeed = isCapital ? 45 : isCruiser ? 60 : isFrigate ? 75 : 90;
+        const patrolVx = Math.cos(enemyRot) * patrolSpeed;
+        const patrolVy = Math.sin(enemyRot) * patrolSpeed;
+        evx += (patrolVx - evx) * Math.min(1, 1.4 * dt);
+        evy += (patrolVy - evy) * Math.min(1, 1.4 * dt);
       }
 
       // 6. Shield regeneration on capital and cruiser ships
@@ -1966,8 +1967,6 @@ export class GameEngine {
     const worldDrones = world.drones || [];
     if (worldDrones.length > 0) {
       const liveEnemies = useGameStore.getState().world.enemies;
-      const enemyProjectiles = useGameStore.getState().world.projectiles.filter((p) => p.owner === 'ENEMY');
-      const interceptedProjIds = new Set<string>();
 
       const updatedDrones = worldDrones
         .map((drone) => {
@@ -1978,18 +1977,6 @@ export class GameEngine {
           const nCooldown = Math.max(0, drone.fireCooldown - dt);
           const nLifetime = drone.lifetime - dt;
           const droneRot = nAngle + Math.PI / 2;
-
-          // A. Intercept close enemy incoming fire within 180 units of this defense drone
-          for (const ep of enemyProjectiles) {
-            if (interceptedProjIds.has(ep.id)) continue;
-            const distToProj = Math.hypot(ep.x - targetX, ep.y - targetY);
-            if (distToProj < 180) {
-              interceptedProjIds.add(ep.id);
-              this.spawnExplosionParticles(ep.x, ep.y, '#10B981', 8);
-              SoundManager.playLaser(false);
-              break;
-            }
-          }
 
           // B. Auto-fire micro-pulse laser at nearest hostile within 480 units
           if (nCooldown <= 0 && liveEnemies.length > 0) {

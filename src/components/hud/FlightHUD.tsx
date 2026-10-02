@@ -7,6 +7,7 @@ import {
   Shield,
   Activity,
   Fuel,
+  Rocket,
   Coins,
   Package,
   Volume2,
@@ -239,6 +240,9 @@ const MobileCompactGauges = memo(() => {
   const shield = useGameStore((state) => state.ship.shield);
   const maxShield = useGameStore((state) => state.ship.maxShield);
   const shipTier = useGameStore((state) => state.ship.shipTier || 1);
+  const hasTorpedoLauncher = useGameStore((state) => state.ship.hasTorpedoLauncher);
+  const torpedoes = useGameStore((state) => state.ship.torpedoes || 0);
+  const maxTorpedoes = useGameStore((state) => state.ship.maxTorpedoes || 5);
   const [speed, setSpeed] = useState(0);
 
   useEffect(() => {
@@ -300,6 +304,24 @@ const MobileCompactGauges = memo(() => {
         </div>
         <span className="text-[8px] text-slate-300 w-6 text-right font-mono">{Math.round(fuel)}%</span>
       </div>
+
+      {/* Torpedo / Missile Ammo */}
+      {hasTorpedoLauncher && (
+        <div className="flex items-center gap-1.5">
+          <Rocket className="w-3 h-3 text-orange-400 shrink-0" />
+          <div className="flex-1 bg-slate-900 h-1.5 rounded-full overflow-hidden border border-slate-800">
+            <div
+              className={`h-full transition-all duration-150 ${
+                torpedoes > 0 ? 'bg-amber-400 shadow-glow-amber' : 'bg-rose-500'
+              }`}
+              style={{ width: `${Math.min(100, (torpedoes / Math.max(1, maxTorpedoes)) * 100)}%` }}
+            />
+          </div>
+          <span className="text-[8px] text-amber-300 w-6 text-right font-mono font-bold">
+            {torpedoes}
+          </span>
+        </div>
+      )}
     </div>
   );
 });
@@ -649,6 +671,38 @@ const DesktopFlightGauges = memo(() => {
               fuel > 20 ? 'bg-amber-400 shadow-glow-amber' : 'bg-rose-500 animate-pulse'
             }`}
             style={{ width: `${fuel}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Missiles / Photon Torpedoes Ammo Gauge */}
+      <div>
+        <div className="flex justify-between text-[10px] text-slate-300 mb-0.5">
+          <span className="flex items-center gap-1 font-semibold text-orange-400">
+            <Rocket className="w-3.5 h-3.5 text-orange-400" /> PHOTON TORPEDOES
+          </span>
+          <span className="font-mono">
+            {hasTorpedoLauncher ? (
+              <span className="text-xs font-black text-amber-300">
+                {torpedoes} <span className="text-[10px] text-slate-400 font-normal">/ {maxTorpedoes}</span>
+              </span>
+            ) : (
+              <span className="text-slate-500 text-[9px] font-semibold">NOT INSTALLED</span>
+            )}
+          </span>
+        </div>
+        <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
+          <div
+            className={`h-full transition-all duration-150 ${
+              !hasTorpedoLauncher
+                ? 'bg-slate-800'
+                : torpedoes > 0
+                ? 'bg-gradient-to-r from-amber-500 to-orange-400 shadow-glow-amber'
+                : 'bg-rose-900/60'
+            }`}
+            style={{
+              width: `${hasTorpedoLauncher ? Math.min(100, (torpedoes / Math.max(1, maxTorpedoes)) * 100) : 0}%`,
+            }}
           />
         </div>
       </div>
