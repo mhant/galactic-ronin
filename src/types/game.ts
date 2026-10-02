@@ -112,6 +112,7 @@ export interface EscortShip {
 }
 
 export type GameMode = 'STORY' | 'FREE_PLAY';
+export type GameDifficulty = 'EASY' | 'NORMAL' | 'HARD' | 'EXTREME';
 
 export type MissionType =
   | 'COURIER_CARGO'
@@ -428,4 +429,5 @@ export interface GameState {
   isIntroNuxOpen: boolean;
   activeStorybookChapter: StoryChapter | null;
   unlockedStoryChapterIds: string[];
+  difficulty: GameDifficulty;
 }

@@ -17,6 +17,7 @@ import {
   X,
   CheckCircle2,
   Lock,
+  Swords,
 } from 'lucide-react';
 
 export const PauseMenu: React.FC = () => {
@@ -39,6 +40,8 @@ export const PauseMenu: React.FC = () => {
   const currentSectorId = useGameStore((state) => state.world.currentSectorId || 'Sector-01');
   const touchControlsMode = useGameStore((state) => state.touchControlsMode);
   const setTouchControlsMode = useGameStore((state) => state.setTouchControlsMode);
+  const difficulty = useGameStore((state) => state.difficulty || 'EASY');
+  const setDifficulty = useGameStore((state) => state.setDifficulty);
 
   if (!isPaused) return null;
 
@@ -164,6 +167,58 @@ export const PauseMenu: React.FC = () => {
             <Home className="w-3.5 h-3.5 text-rose-400" />
             <span>RETURN TO MAIN MENU (SAVE & QUIT)</span>
           </button>
+        </div>
+
+        {/* Combat Difficulty Setting */}
+        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 text-center space-y-2 shadow-inner">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+              <Swords className="w-3.5 h-3.5 text-amber-400" />
+              <span>COMBAT DIFFICULTY</span>
+            </span>
+            <span className="text-[10px] text-slate-400 font-semibold">
+              {difficulty === 'EASY' && 'Standard (1.0x)'}
+              {difficulty === 'NORMAL' && 'Tougher (+50% HP & Firepower)'}
+              {difficulty === 'HARD' && 'Veteran (+100% / 3.0x HP)'}
+              {difficulty === 'EXTREME' && 'Nightmare (+200% / 9.0x HP)'}
+            </span>
+          </div>
+          <div className="grid grid-cols-4 gap-1.5">
+            {(['EASY', 'NORMAL', 'HARD', 'EXTREME'] as const).map((diff) => {
+              const isActive = difficulty === diff;
+              const activeBg =
+                diff === 'EASY'
+                  ? 'bg-emerald-600 text-white border-emerald-400 shadow-md shadow-emerald-950'
+                  : diff === 'NORMAL'
+                  ? 'bg-amber-600 text-white border-amber-400 shadow-md shadow-amber-950'
+                  : diff === 'HARD'
+                  ? 'bg-orange-600 text-white border-orange-400 shadow-md shadow-orange-950'
+                  : 'bg-rose-600 text-white border-rose-400 shadow-md shadow-rose-950 animate-pulse';
+
+              const idleBorder =
+                diff === 'EASY'
+                  ? 'hover:border-emerald-500/50 text-emerald-400'
+                  : diff === 'NORMAL'
+                  ? 'hover:border-amber-500/50 text-amber-400'
+                  : diff === 'HARD'
+                  ? 'hover:border-orange-500/50 text-orange-400'
+                  : 'hover:border-rose-500/50 text-rose-400';
+
+              return (
+                <button
+                  key={diff}
+                  onClick={() => setDifficulty(diff)}
+                  className={`py-1.5 px-2 rounded-lg text-[11px] font-black tracking-wider transition-all duration-150 border cursor-pointer ${
+                    isActive
+                      ? activeBg
+                      : `bg-slate-950/80 border-slate-800 ${idleBorder} hover:bg-slate-900`
+                  }`}
+                >
+                  {diff}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Controls Manual Drawer */}

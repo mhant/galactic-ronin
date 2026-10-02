@@ -5,6 +5,7 @@ import {
   FloatingLoot,
   GameState,
   GameMode,
+  GameDifficulty,
   InventoryItem,
   MarketItem,
   PlayerStats,
@@ -25,6 +26,23 @@ import { generateSector, generateClusterCell } from '../data/sectorGenerator';
 import { generateStationMarket, getStationMineralPrice } from '../data/economy';
 import { SoundManager } from '../audio/SoundManager';
 import { SHIP_CLASSES, getShipClass, getEscortClass, getMaxEscortsForTier } from '../data/shipClasses';
+
+export const getDifficultyMultipliers = (difficulty: GameDifficulty = 'EASY') => {
+  switch (difficulty) {
+    case 'NORMAL':
+      // 50% bump for normal (+50% HP/Shield & Weapon Damage)
+      return { hpMult: 1.5, dmgMult: 1.5, bountyMult: 1.35 };
+    case 'HARD':
+      // another 100% bump on top of normal (2.0x normal = 3.0x easy base)
+      return { hpMult: 3.0, dmgMult: 2.5, bountyMult: 2.0 };
+    case 'EXTREME':
+      // 200% on top of hard (3.0x hard = 9.0x easy base)
+      return { hpMult: 9.0, dmgMult: 5.0, bountyMult: 3.5 };
+    case 'EASY':
+    default:
+      return { hpMult: 1.0, dmgMult: 1.0, bountyMult: 1.0 };
+  }
+};
 import { getMineral, getRandomMineralForSector } from '../data/minerals';
 import { generateStationMissions } from '../data/missions';
 import { saveToSlot, loadFromSlot } from '../data/saveSlots';
@@ -242,7 +260,8 @@ export function createScaledEnemy(
   baseY: number,
   playerOrPower: PlayerStats | number,
   shipOrName?: ShipStats | string,
-  customName?: string
+  customName?: string,
+  difficultyOverride?: GameDifficulty
 ): Enemy {
   let playerPower: number;
   let playerTier = 1;
@@ -348,7 +367,7 @@ export function createScaledEnemy(
   const playerScale = playerTier <= 22 ? 1.0 : (1.0 + (playerTier - 22) * 0.008);
   const enemyScale = Number((playerScale * factor).toFixed(2));
 
-  // 2. Streamlined HP & Shield Scaling
+  // 2. Streamlined HP & Shield Scaling with Difficulty Modifier
   // Calibrated volleys needed:
   // - Orange (-30% to -5%): 4.5 to 6.5 volleys (tough enough to survive auto-turrets, requires player shooting)
   // - Red (-5% to +5%): 7.0 to 9.5 volleys (~2.5s of focused dogfight)
@@ -365,7 +384,9 @@ export function createScaledEnemy(
     volleysNeeded = 7.0 + ((factor - 0.95) / 0.10) * 2.5;
   }
 
-  const totalEffectiveHP = Math.max(45, Math.round(expectedVolleyDmg * volleysNeeded));
+  const difficulty = difficultyOverride || 'EASY';
+  const { hpMult, bountyMult } = getDifficultyMultipliers(difficulty);
+  const totalEffectiveHP = Math.max(45, Math.round(expectedVolleyDmg * volleysNeeded * hpMult));
 
   // Divide between Hull and Deflector Shields based on category
   let maxShield = 0;
@@ -410,7 +431,7 @@ export function createScaledEnemy(
     maxHull,
     shield: maxShield,
     maxShield,
-    bounty: Math.round(200 + power * 2.5 + enemyTier * 90),
+    bounty: Math.round((200 + power * 2.5 + enemyTier * 90) * bountyMult),
     fireCooldown: 0.8 + Math.random() * 1.5,
     aggroDistance: Math.round(480 + enemyScale * 90),
     power,
@@ -503,6 +524,7 @@ interface GameActions {
   toggleDiagnostics: () => void;
   returnToMainMenu: () => void;
   setTouchControlsMode: (mode: 'AUTO' | 'ON' | 'OFF') => void;
+  setDifficulty: (difficulty: GameDifficulty) => void;
 
   // Save Slots & Mode System
   startNewGameInSlot: (mode: GameMode, slotIndex: number) => void;
@@ -619,6 +641,7 @@ const getInitialState = () => ({
   isIntroNuxOpen: false,
   activeStorybookChapter: null as StoryChapter | null,
   unlockedStoryChapterIds: [] as string[],
+  difficulty: 'EASY' as GameDifficulty,
 });
 
 export const useGameStore = create<GameState & GameActions>()(
@@ -2636,6 +2659,23 @@ export const useGameStore = create<GameState & GameActions>()(
         });
       },
 
+      setDifficulty: (difficulty: GameDifficulty) => {
+        const { player, ship, world } = get();
+        SoundManager.playDock();
+        logger.log('STATE', `Combat Difficulty Set to [${difficulty}]`);
+        const rescaledEnemies = (world.enemies || []).map((e) =>
+          createScaledEnemy(e.id, e.x, e.y, player, ship, e.name, difficulty)
+        );
+        set((state) => ({
+          difficulty,
+          world: {
+            ...state.world,
+            enemies: rescaledEnemies,
+          },
+        }));
+        get().saveCurrentGame();
+      },
+
       resetGame: () => {
         const fresh = getInitialState();
         const sectorData = generateSector('Sector-01');
@@ -2721,6 +2761,7 @@ export const useGameStore = create<GameState & GameActions>()(
         musicEnabled: state.musicEnabled,
         sfxEnabled: state.sfxEnabled,
         invertFlightControls: state.invertFlightControls,
+        difficulty: state.difficulty || 'EASY',
       }),
     }
   )

@@ -1,5 +1,5 @@
-import { Asteroid, Enemy, Particle, Projectile, ReconDrone, Station, EscortShip } from '../types/game';
-import { useGameStore } from '../store/useGameStore';
+import { Asteroid, Enemy, Particle, Projectile, ReconDrone, Station, EscortShip, FloatingLoot } from '../types/game';
+import { useGameStore, getDifficultyMultipliers } from '../store/useGameStore';
 import { SoundManager } from '../audio/SoundManager';
 import { logger } from './diagnosticLogger';
 
@@ -1693,9 +1693,10 @@ export class GameEngine {
         if (distToPlayer < maxFireRange && isFacingPlayer && fireCooldown <= 0) {
           fireCooldown = isCapital ? 2.2 : isCruiser ? 2.0 : isFrigate ? 1.9 : 1.7;
 
-          // Damage calibrated so 1v1 is easily won by player; swarm of 3-5 provides tactical danger
+          // Damage calibrated with difficulty multiplier (Easy: 1.0x, Normal: 1.5x, Hard: 2.5x, Extreme: 5.0x)
           const threatMult = enemy.threatLevel === 'STRONGER' ? 1.15 : enemy.threatLevel === 'WEAKER' ? 0.85 : 1.0;
-          const boltDamage = Math.round((isCapital ? 8 : isCruiser ? 9 : isFrigate ? 8 : 7) * threatMult);
+          const { dmgMult } = getDifficultyMultipliers(state.difficulty || 'EASY');
+          const boltDamage = Math.round((isCapital ? 8 : isCruiser ? 9 : isFrigate ? 8 : 7) * threatMult * dmgMult);
           const laserColor = enemy.threatColor || (enemy.threatLevel === 'STRONGER' ? '#A855F7' : enemy.threatLevel === 'WEAKER' ? '#F97316' : '#FF3366');
           const spread = (Math.random() - 0.5) * 0.08;
           const shotAngle = fireAngle + spread;
@@ -1728,7 +1729,7 @@ export class GameEngine {
                 y: enemy.y + Math.sin(shotAngle) * 28,
                 vx: Math.cos(shotAngle) * 340,
                 vy: Math.sin(shotAngle) * 340,
-                damage: 32,
+                damage: Math.round(32 * dmgMult),
                 lifetime: Math.max(3.0, (distToPlayer + 200) / 340),
                 color: '#A855F7',
               });
@@ -1855,13 +1856,12 @@ export class GameEngine {
       let isEscortCollecting = false;
       let activeCollector: EscortShip | null = null;
       let isMiningBargeCollector = false;
-      const isOreLoot = loot.item?.category === 'ORE' || loot.lootType === 'CARGO';
 
-      // Check distance to all player escorts (Mining barges have high-efficiency 650px ore tractor field)
+      // Check distance to all player escorts (Mining barges have high-efficiency 750px vacuum tractor field for all loot)
       for (const esc of livePlayerEscorts) {
         const dEsc = Math.hypot(esc.x - lx, esc.y - ly);
         const isBarge = esc.type === 'MINING_BARGE';
-        const effectiveTractor = (isBarge && isOreLoot) ? 650 : ESCORT_TRACTOR_RANGE;
+        const effectiveTractor = isBarge ? 750 : ESCORT_TRACTOR_RANGE;
 
         if (dEsc < effectiveTractor && dEsc < closestDist) {
           closestDist = dEsc;
@@ -1873,11 +1873,11 @@ export class GameEngine {
         }
       }
 
-      const activeTractorRange = isMiningBargeCollector ? 650 : isEscortCollecting ? ESCORT_TRACTOR_RANGE : TRACTOR_RANGE;
+      const activeTractorRange = isMiningBargeCollector ? 750 : isEscortCollecting ? ESCORT_TRACTOR_RANGE : TRACTOR_RANGE;
       if (closestDist < activeTractorRange && closestDist > 0.001) {
         // Magnetic tractor beam pull (stronger gravity pull as ship gets larger)
         const pullAngle = Math.atan2(targetPullY - ly, targetPullX - lx);
-        const basePullSpeed = isMiningBargeCollector ? 480 : isEscortCollecting ? 320 : 270 * tierTractorScale;
+        const basePullSpeed = isMiningBargeCollector ? 550 : isEscortCollecting ? 320 : 270 * tierTractorScale;
         const pullSpeed = basePullSpeed * Math.min(3.5, 1.3 - (closestDist / activeTractorRange) * 0.4);
         loot.vx = (loot.vx || 0) + Math.cos(pullAngle) * pullSpeed * dt;
         loot.vy = (loot.vy || 0) + Math.sin(pullAngle) * pullSpeed * dt;
@@ -2124,13 +2124,14 @@ export class GameEngine {
 
     // Enemy Heavy Beam Weapons (Disabled if stunned)
     let anyEnemyBeamFiring = false;
+    const { dmgMult: beamDmgMult } = getDifficultyMultipliers(state.difficulty || 'EASY');
     for (const en of liveEnemiesForBeam) {
       if (en.hasBeamWeapon && (!en.stunDuration || en.stunDuration <= 0)) {
         const d = Math.hypot(newX - en.x, newY - en.y);
         if (d < 450) {
           anyEnemyBeamFiring = true;
           this.enemyBeamActive.add(en.id);
-          this.enemyBeamDamageAccumulator += 10 * dt;
+          this.enemyBeamDamageAccumulator += 10 * beamDmgMult * dt;
 
           if (Math.random() < 0.3) {
             const sparkAngle = Math.random() * Math.PI * 2;
@@ -2239,7 +2240,7 @@ export class GameEngine {
         const distToPlayer = Math.hypot(newX - ex, newY - ey);
 
         // Rubber-banding snapback if escort drifted more than 1 screen away from player
-        const maxAllowedDistance = Math.max(1400, 1100 / Math.max(0.25, this.currentZoom));
+        const maxAllowedDistance = Math.max(900, 800 / Math.max(0.25, this.currentZoom));
         if (distToPlayer > maxAllowedDistance) {
           ex = targetFormX;
           ey = targetFormY;
@@ -2268,58 +2269,68 @@ export class GameEngine {
         const desiredFollowSpeed = Math.min(maxFollowSpeed, Math.max(playerSpeed * 1.3, distToForm * 5.8));
         const formMoveAngle = Math.atan2(targetFormY - ey, targetFormX - ex);
 
-        // Specialty 1: Auto-Mining Barge (Follows player fleet, mines anything visible on screen)
+        // Specialty 1: Auto-Mining Barge (Follows player fleet, collects any visible loot on screen, and mines visible asteroids)
         if (escort.type === 'MINING_BARGE') {
-          // Screen-wide reach for mining visible asteroids
-          const screenMiningRadius = Math.max(950, 800 / Math.max(0.25, this.currentZoom));
+          // Screen-wide reach for mining and collecting visible items
+          const screenRadius = Math.max(950, 850 / Math.max(0.25, this.currentZoom));
+
+          // 1. Priority A: Search for ANY visible floating loot on screen (Ore, Cargo, Credits, Missiles, Fuel, Repair)
+          const floatingLoots = world.floatingLoot || [];
+          let nearestLoot: FloatingLoot | null = null;
+          let nearestLootDist = screenRadius;
+          for (const loot of floatingLoots) {
+            const dPlayer = Math.hypot(loot.x - newX, loot.y - newY);
+            const dBarge = Math.hypot(loot.x - ex, loot.y - ey);
+            if (dPlayer <= screenRadius || dBarge <= screenRadius) {
+              if (dBarge < nearestLootDist) {
+                nearestLootDist = dBarge;
+                nearestLoot = loot;
+              }
+            }
+          }
+
+          // 2. Priority B: Search for visible asteroids to mine if no loot is currently on screen
           let closestAst: Asteroid | null = null;
-          let minAstDist = screenMiningRadius;
-          const liveAsteroids = world.asteroids || [];
-          for (const ast of liveAsteroids) {
-            if (ast.health > 0) {
-              const dPlayer = Math.hypot(ast.x - newX, ast.y - newY);
-              const dBarge = Math.hypot(ast.x - ex, ast.y - ey);
-              if (dPlayer <= screenMiningRadius || dBarge <= screenMiningRadius) {
-                if (dBarge < minAstDist) {
-                  minAstDist = dBarge;
-                  closestAst = ast;
+          let minAstDist = screenRadius;
+          if (!nearestLoot) {
+            const liveAsteroids = world.asteroids || [];
+            for (const ast of liveAsteroids) {
+              if (ast.health > 0) {
+                const dPlayer = Math.hypot(ast.x - newX, ast.y - newY);
+                const dBarge = Math.hypot(ast.x - ex, ast.y - ey);
+                if (dPlayer <= screenRadius || dBarge <= screenRadius) {
+                  if (dBarge < minAstDist) {
+                    minAstDist = dBarge;
+                    closestAst = ast;
+                  }
                 }
               }
             }
           }
 
-          // Check for nearby floating ore pods to sweep and collect
-          const floatingLoots = world.floatingLoot || [];
-          let nearestOreLoot = null;
-          let nearestOreDist = 450;
-          for (const loot of floatingLoots) {
-            if (loot.item?.category === 'ORE' || loot.lootType === 'CARGO') {
-              const dLoot = Math.hypot(loot.x - ex, loot.y - ey);
-              if (dLoot < nearestOreDist) {
-                nearestOreDist = dLoot;
-                nearestOreLoot = loot;
-              }
+          if (nearestLoot) {
+            // Actively navigate towards the floating loot pod to vacuum and collect it
+            const lootAngle = Math.atan2(nearestLoot.y - ey, nearestLoot.x - ex);
+            erot = lootAngle;
+            const lootSeekSpeed = Math.min(maxFollowSpeed, Math.max(playerSpeed * 1.4, 380));
+            evx += (Math.cos(lootAngle) * lootSeekSpeed - evx) * Math.min(1, 5.5 * dt);
+            evy += (Math.sin(lootAngle) * lootSeekSpeed - evy) * Math.min(1, 5.5 * dt);
+
+            // Instant collection when in close contact with pod
+            if (nearestLootDist < 65) {
+              state.collectLoot(nearestLoot.id);
             }
-          }
-
-          // If close to player and there's nearby ore, bias flight path toward the ore pod
-          if (nearestOreLoot && distToForm < 350) {
-            const oreAngle = Math.atan2(nearestOreLoot.y - ey, nearestOreLoot.x - ex);
-            evx += (Math.cos(oreAngle) * Math.min(maxFollowSpeed, 280) - evx) * Math.min(1, 4.5 * dt);
-            evy += (Math.sin(oreAngle) * Math.min(maxFollowSpeed, 280) - evy) * Math.min(1, 4.5 * dt);
-          } else {
-            // Always fly with the fleet formation position so it keeps up
-            evx += (Math.cos(formMoveAngle) * desiredFollowSpeed - evx) * Math.min(1, 5.0 * dt);
-            evy += (Math.sin(formMoveAngle) * desiredFollowSpeed - evy) * Math.min(1, 5.0 * dt);
-          }
-
-          if (closestAst) {
+          } else if (closestAst) {
             currentMiningTargetId = closestAst.id;
             const aimAngle = Math.atan2(closestAst.y - ey, closestAst.x - ex);
             erot = aimAngle;
 
+            // Follow fleet formation position while actively firing mining laser
+            evx += (Math.cos(formMoveAngle) * desiredFollowSpeed - evx) * Math.min(1, 5.0 * dt);
+            evy += (Math.sin(formMoveAngle) * desiredFollowSpeed - evy) * Math.min(1, 5.0 * dt);
+
             // Apply mining damage to asteroid
-            const miningDps = 110;
+            const miningDps = 130;
             state.damageAsteroid(closestAst.id, miningDps * dt);
 
             // Turquoise mining beam impact spark particles on asteroid
@@ -2337,9 +2348,10 @@ export class GameEngine {
                 maxLifetime: 0.2,
               });
             }
-          } else if (nearestOreLoot) {
-            erot = Math.atan2(nearestOreLoot.y - ey, nearestOreLoot.x - ex);
           } else {
+            // Follow fleet formation position smoothly
+            evx += (Math.cos(formMoveAngle) * desiredFollowSpeed - evx) * Math.min(1, 5.0 * dt);
+            evy += (Math.sin(formMoveAngle) * desiredFollowSpeed - evy) * Math.min(1, 5.0 * dt);
             erot = rot;
           }
         }
