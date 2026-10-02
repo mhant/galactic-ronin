@@ -1994,7 +1994,7 @@ export class GameEngine {
         this.particles[pWrite++] = p;
       }
     }
-    this.particles.length = Math.min(pWrite, 75);
+    this.particles.length = Math.min(pWrite, 50);
 
     // 10. Endless Universe & Clusters Check (Throttled: check only when player moves > 300 units)
     if (Math.hypot(newX - this.lastClusterCheckX, newY - this.lastClusterCheckY) > 300) {
@@ -3355,14 +3355,14 @@ export class GameEngine {
     let renderedCount = 0;
     for (let cx = startCellX; cx <= endCellX; cx++) {
       for (let cy = startCellY; cy <= endCellY; cy++) {
-        if (renderedCount >= 3) break;
+        if (renderedCount >= 2) break;
         const hash = Math.sin(cx * 374761393 + cy * 668265263) * 10000;
         const rand = Math.abs(hash - Math.floor(hash));
-        if (rand > 0.45) continue;
+        if (rand > 0.40) continue;
 
         const cloudX = cx * cellSize + (rand * cellSize * 0.7);
         const cloudY = cy * cellSize + ((1 - rand) * cellSize * 0.7);
-        const radius = 550 + rand * 450;
+        const radius = 500 + rand * 350;
 
         // Frustum check
         if (
@@ -3378,22 +3378,17 @@ export class GameEngine {
         const color = colors[colIdx];
 
         const grad = ctx.createRadialGradient(cloudX, cloudY, 20, cloudX, cloudY, radius);
-        try {
-          grad.addColorStop(0, color);
-          grad.addColorStop(1, 'transparent');
-        } catch {
-          grad.addColorStop(0, 'rgba(0, 240, 255, 0.2)');
-          grad.addColorStop(1, 'transparent');
-        }
+        grad.addColorStop(0, color);
+        grad.addColorStop(1, 'transparent');
 
-        ctx.globalAlpha = dustAlpha * (0.5 + rand * 0.8);
+        ctx.globalAlpha = dustAlpha * (0.4 + rand * 0.6);
         ctx.fillStyle = grad;
         ctx.beginPath();
         ctx.arc(cloudX, cloudY, radius, 0, Math.PI * 2);
         ctx.fill();
         renderedCount++;
       }
-      if (renderedCount >= 3) break;
+      if (renderedCount >= 2) break;
     }
     ctx.restore();
   }
@@ -3543,23 +3538,24 @@ export class GameEngine {
   ) {
     ctx.save();
     const starTint = theme?.starTint || '#E2E8F0';
-    for (const star of this.stars) {
+    ctx.fillStyle = starTint;
+
+    const minX = camX - vw / 2 - 20;
+    const maxX = camX + vw / 2 + 20;
+    const minY = camY - vh / 2 - 20;
+    const maxY = camY + vh / 2 + 20;
+
+    for (let i = 0; i < this.stars.length; i++) {
+      const star = this.stars[i];
       // Parallax offset
       const sx = star.x + camX * (1 - star.layer);
       const sy = star.y + camY * (1 - star.layer);
 
-      // Simple culling
-      if (
-        sx >= camX - vw / 2 - 20 &&
-        sx <= camX + vw / 2 + 20 &&
-        sy >= camY - vh / 2 - 20 &&
-        sy <= camY + vh / 2 + 20
-      ) {
-        ctx.fillStyle = starTint;
+      // Fast AABB culling
+      if (sx >= minX && sx <= maxX && sy >= minY && sy <= maxY) {
         ctx.globalAlpha = star.brightness * star.layer;
-        ctx.beginPath();
-        ctx.arc(sx, sy, star.size, 0, Math.PI * 2);
-        ctx.fill();
+        const s = star.size;
+        ctx.fillRect(sx - s * 0.5, sy - s * 0.5, s, s);
       }
     }
     ctx.restore();
@@ -4314,13 +4310,13 @@ export class GameEngine {
     const minY = playerY - vh / 2 - 80;
     const maxY = playerY + vh / 2 + 80;
 
-    for (const p of projectiles) {
+    for (let i = 0; i < projectiles.length; i++) {
+      const p = projectiles[i];
       if (p.x < minX || p.x > maxX || p.y < minY || p.y > maxY) continue;
 
-      ctx.save();
-
       if (p.type === 'TORPEDO') {
-        // Render Torpedo Missile
+        // Render Torpedo Missile (Requires local transform)
+        ctx.save();
         const heading = Math.atan2(p.vy, p.vx);
         ctx.translate(p.x, p.y);
         ctx.rotate(heading);
@@ -4361,6 +4357,7 @@ export class GameEngine {
         ctx.fillStyle = '#94a3b8';
         ctx.fillRect(-7, -6, 4, 2);
         ctx.fillRect(-7, 4, 4, 2);
+        ctx.restore();
       } else if (p.type === 'FLAK') {
         // Fast dual-pass yellow/white flak tracer
         ctx.strokeStyle = 'rgba(253, 224, 71, 0.45)';
@@ -4417,8 +4414,6 @@ export class GameEngine {
         ctx.arc(p.x, p.y, Math.max(2.0, coreWidth * 0.62), 0, Math.PI * 2);
         ctx.fill();
       }
-
-      ctx.restore();
     }
   }
 

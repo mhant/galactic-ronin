@@ -30,18 +30,18 @@ import { SHIP_CLASSES, getShipClass, getEscortClass, getMaxEscortsForTier } from
 export const getDifficultyMultipliers = (difficulty: GameDifficulty = 'EASY') => {
   switch (difficulty) {
     case 'NORMAL':
-      // 2x difficulty from Easy (4.0x HP & 3.5x Damage)
-      return { hpMult: 4.0, dmgMult: 3.5, bountyMult: 1.5 };
+      // 50% harder (+50% HP & Firepower)
+      return { hpMult: 1.5, dmgMult: 1.5, bountyMult: 1.25 };
     case 'HARD':
-      // 4x difficulty from Easy (8.0x HP & 6.0x Damage)
-      return { hpMult: 8.0, dmgMult: 6.0, bountyMult: 2.5 };
+      // 100% harder (+100% HP & Firepower -> 2.0x base)
+      return { hpMult: 2.0, dmgMult: 2.0, bountyMult: 1.6 };
     case 'EXTREME':
-      // 8x difficulty from Easy (16.0x HP & 10.0x Damage)
-      return { hpMult: 16.0, dmgMult: 10.0, bountyMult: 4.0 };
+      // 200% harder (+200% HP & Firepower -> 3.0x base)
+      return { hpMult: 3.0, dmgMult: 2.5, bountyMult: 2.2 };
     case 'EASY':
     default:
-      // Base Easy increased by 2x (2.0x HP & 2.0x Damage)
-      return { hpMult: 2.0, dmgMult: 2.0, bountyMult: 1.0 };
+      // Base Easy (1.0x HP & 1.0x Firepower)
+      return { hpMult: 1.0, dmgMult: 1.0, bountyMult: 1.0 };
   }
 };
 import { getMineral, getRandomMineralForSector } from '../data/minerals';
