@@ -383,15 +383,22 @@ export class GameEngine {
     const { ship, world, player } = state;
 
     // 0. Dynamic Camera Zoom Calculation based on Ship Class Progression
+    // Zoom out to provide wide tactical combat visibility as starships and armada fleets grow
     const tier = ship.shipTier || 1;
-    if (tier >= 20) {
+    if (tier >= 70) {
+      this.targetZoom = 0.35;
+    } else if (tier >= 40) {
+      this.targetZoom = 0.40;
+    } else if (tier >= 20) {
+      this.targetZoom = 0.46;
+    } else if (tier >= 12) {
       this.targetZoom = 0.58;
-    } else if (tier >= 15) {
+    } else if (tier >= 6) {
       this.targetZoom = 0.72;
-    } else if (tier >= 10) {
+    } else if (tier >= 3) {
       this.targetZoom = 0.85;
     } else {
-      this.targetZoom = 1.0;
+      this.targetZoom = 0.95;
     }
 
     // Smooth camera zoom interpolation
@@ -477,11 +484,10 @@ export class GameEngine {
     let newX = ship.x + vx * dt;
     let newY = ship.y + vy * dt;
 
-    // Asteroid Collision Detection & Elastic Rebound
+    // Asteroid & Hostile Ship Collision Detection & Elastic Rebound
     this.asteroidCollisionCooldown = Math.max(0, this.asteroidCollisionCooldown - dt);
     const playerTier = ship.shipTier || 1;
-    const playerScale = Number((1.0 + (playerTier - 1) * 0.12).toFixed(2));
-    const playerHitRadius = Math.max(22, 18 * playerScale);
+    const playerHitRadius = Math.min(65, Math.max(22, 18 + Math.min(22, playerTier) * 1.5 + Math.max(0, playerTier - 22) * 0.25));
 
     for (const ast of world.asteroids) {
       const distToAst = Math.hypot(newX - ast.x, newY - ast.y);
@@ -518,6 +524,40 @@ export class GameEngine {
 
           SoundManager.playExplosion();
           this.spawnExplosionParticles(ast.x + nx * ast.radius, ast.y + ny * ast.radius, '#F59E0B', 10);
+        }
+      }
+    }
+
+    // Physical Enemy Ship Collision Separation & Overlap Prevention
+    for (const enemy of world.enemies || []) {
+      const distToEnemy = Math.hypot(newX - enemy.x, newY - enemy.y);
+      const enemyHitRadius = Math.max(26, 22 * (enemy.scale || 1.0));
+      const minDistance = playerHitRadius + enemyHitRadius;
+
+      if (distToEnemy < minDistance && distToEnemy > 0.0001) {
+        const overlap = minDistance - distToEnemy;
+        const nx = (newX - enemy.x) / distToEnemy;
+        const ny = (newY - enemy.y) / distToEnemy;
+
+        // Immediately push apart to prevent overlapping
+        newX += nx * overlap * 0.55;
+        newY += ny * overlap * 0.55;
+        enemy.x -= nx * overlap * 0.55;
+        enemy.y -= ny * overlap * 0.55;
+
+        // Elastic bounce
+        const relVx = vx - enemy.vx;
+        const relVy = vy - enemy.vy;
+        const dot = relVx * nx + relVy * ny;
+        if (dot < 0) {
+          vx = (vx - 1.4 * dot * nx) * 0.8;
+          vy = (vy - 1.4 * dot * ny) * 0.8;
+          enemy.vx = (enemy.vx + 1.4 * dot * nx) * 0.8;
+          enemy.vy = (enemy.vy + 1.4 * dot * ny) * 0.8;
+        }
+
+        if (Math.random() < 0.25) {
+          this.spawnExplosionParticles(enemy.x + nx * enemyHitRadius, enemy.y + ny * enemyHitRadius, '#00F0FF', 6);
         }
       }
     }
@@ -1271,7 +1311,8 @@ export class GameEngine {
         const isCorvette = enemyCat === 'CORVETTE';
         const isScout = enemyCat === 'SCOUT';
 
-        const preferredDist = isCapital ? 410 : isCruiser ? 340 : isFrigate ? 290 : isCorvette ? 240 : 190;
+        const minPlayerDist = playerHitRadius + Math.max(55, 38 * (enemy.scale || 1.0)) + 60;
+        const preferredDist = Math.max(minPlayerDist + 80, isCapital ? 540 : isCruiser ? 440 : isFrigate ? 370 : isCorvette ? 310 : 260);
         const maxSpeed = isCapital ? 95 : isCruiser ? 120 : isFrigate ? 140 : isCorvette ? 160 : 185;
         const accelRate = isCapital ? 1.8 : isCruiser ? 2.3 : isFrigate ? 2.8 : 3.6;
 
@@ -1299,10 +1340,9 @@ export class GameEngine {
         evy += (desiredVy - evy) * Math.min(1, accelRate * dt);
 
         // 3. Collision avoidance & repulsion from player (scales with ship size)
-        const minPlayerDist = Math.max(90, 48 * (enemy.scale || 1.0));
         if (distToPlayer < minPlayerDist && distToPlayer > 0.1) {
           const pushAngle = Math.atan2(enemy.y - newY, enemy.x - newX);
-          const pushForce = (minPlayerDist - distToPlayer) * 15;
+          const pushForce = (minPlayerDist - distToPlayer) * 25;
           evx += Math.cos(pushAngle) * pushForce * dt;
           evy += Math.sin(pushAngle) * pushForce * dt;
         }
@@ -1789,7 +1829,7 @@ export class GameEngine {
 
     // 12c. Escort Armada Fleet Simulation (Autonomous wingmen)
     const playerTierVal = ship.shipTier || 1;
-    const playerScaleVal = Number((1.0 + (playerTierVal - 1) * 0.12).toFixed(2));
+    const playerScaleVal = playerTierVal <= 22 ? 1.0 : Number((1.0 + (playerTierVal - 22) * 0.008).toFixed(2));
     const armadaStance = ship.armadaStance || 'DEFEND';
     const enemyProjsForEscort = useGameStore.getState().world.projectiles.filter((p) => p.owner === 'ENEMY');
 
@@ -4210,8 +4250,9 @@ export class GameEngine {
     const tier = ship.shipTier || 1;
     const weaponLvl = ship.weaponLevel || 1;
 
-    // Visual player ship scaling matching naval capital class progression
-    const playerScale = Number((1.0 + (tier - 1) * 0.12).toFixed(2));
+    // Visual player ship scaling: vector paths already scale from 24u up to 88u across classes;
+    // apply gentle progression for prestige tiers > 22
+    const playerScale = tier <= 22 ? 1.0 : Number((1.0 + (tier - 22) * 0.008).toFixed(2));
     ctx.scale(playerScale, playerScale);
 
     ctx.fillStyle = '#0f172a';
