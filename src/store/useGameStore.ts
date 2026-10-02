@@ -2277,10 +2277,11 @@ export const useGameStore = create<GameState & GameActions>()(
 
         if (newHealth <= 0) {
           SoundManager.playExplosion();
-          // Scale asteroid mineral yields with player ship tier (+18% yield per tier)
+          // Scale asteroid mineral yields aggressively with player ship tier & weapon power
           const playerTier = ship.shipTier || 1;
-          const tierYieldMultiplier = 1.0 + (playerTier - 1) * 0.18;
-          const totalYield = Math.max(2, Math.round(asteroid.oreYield * 1.5 * tierYieldMultiplier));
+          const weaponLvl = ship.weaponLevel || 1;
+          const tierYieldMultiplier = Math.max(1.0, 1.0 + (playerTier - 1) * 0.32 + (weaponLvl - 1) * 0.06);
+          const totalYield = Math.max(3, Math.round(asteroid.oreYield * 2.2 * tierYieldMultiplier));
           const minDef = getMineral(asteroid.oreType);
           const drops: FloatingLoot[] = [];
 
@@ -2324,6 +2325,30 @@ export const useGameStore = create<GameState & GameActions>()(
                 category: 'ORE',
               },
               lifetime: 55,
+            });
+          }
+
+          // High-Tier Ship Perk (Tier 3+): Dense asteroid cores yield bonus rare minerals & tech components
+          if (playerTier >= 3 && Math.random() < 0.45) {
+            const rareMinerals = ['titanium', 'platinum', 'quantum_shards', 'dark_matter', 'fusion_cells'];
+            const bonusMineralId = rareMinerals[Math.min(rareMinerals.length - 1, Math.floor((playerTier - 3) / 3))];
+            const bonusMinDef = getMineral(bonusMineralId);
+            const bonusQty = Math.max(1, Math.round(1 + (playerTier - 3) * 0.45));
+            drops.push({
+              id: `loot_bonus_ore_${Date.now()}_${Math.random()}`,
+              x: asteroid.x + (Math.random() - 0.5) * 25,
+              y: asteroid.y + (Math.random() - 0.5) * 25,
+              vx: (Math.random() - 0.5) * 55,
+              vy: (Math.random() - 0.5) * 55,
+              lootType: 'CARGO',
+              item: {
+                id: bonusMinDef.id,
+                name: bonusMinDef.name,
+                quantity: bonusQty,
+                avgBuyPrice: bonusMinDef.unitValue,
+                category: 'ORE',
+              },
+              lifetime: 60,
             });
           }
 

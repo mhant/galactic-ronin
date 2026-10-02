@@ -1002,8 +1002,10 @@ export class GameEngine {
         this.targetedAsteroid = closestAst;
         SoundManager.playMiningBeam();
 
-        // Accumulate and commit mining extraction damage in batched ticks
-        const miningDps = 220 * (1 + (ship.weaponLevel || 1) * 0.18);
+        // Accumulate and commit mining extraction damage in batched ticks (scales with ship size & weapons)
+        const shipTier = ship.shipTier || 1;
+        const weaponLvl = ship.weaponLevel || 1;
+        const miningDps = 250 * (1 + (shipTier - 1) * 0.28) * (1 + (weaponLvl - 1) * 0.12);
         this.miningDamageAccumulator += miningDps * dt;
         this.miningDamageTimer += dt;
 
@@ -2225,9 +2227,10 @@ export class GameEngine {
             evx += (Math.cos(formMoveAngle) * desiredFollowSpeed - evx) * Math.min(1, 5.0 * dt);
             evy += (Math.sin(formMoveAngle) * desiredFollowSpeed - evy) * Math.min(1, 5.0 * dt);
 
-            // Apply mining damage to asteroid
-            const miningDps = 130;
-            state.damageAsteroid(closestAst.id, miningDps * dt);
+            // Apply mining damage to asteroid (scales with fleet tier)
+            const shipTier = ship.shipTier || 1;
+            const bargeMiningDps = 160 * (1 + (shipTier - 1) * 0.22);
+            state.damageAsteroid(closestAst.id, bargeMiningDps * dt);
 
             // Turquoise mining beam impact spark particles on asteroid
             if (Math.random() < 0.4) {

@@ -28,8 +28,9 @@ export function generateStationMissions(
     ? otherStations[Math.floor(Math.random() * otherStations.length)]
     : station;
 
-  const tierScale = 1 + (playerTier - 1) * 0.18;
-  const baseReward = Math.round((650 + Math.random() * 500) * tierScale);
+  // Exponential tier scaling so higher-tier commanders receive massive rewards matching capital fleet economy
+  const tierMultiplier = Math.pow(1.22, Math.max(0, playerTier - 1));
+  const baseReward = Math.round((950 + Math.random() * 450) * tierMultiplier + (playerTier - 1) * 600);
 
   // 1. Courier Cargo / Passenger Transport Mission
   const client1 = CLIENT_NAMES[Math.floor(Math.random() * CLIENT_NAMES.length)];
@@ -46,7 +47,7 @@ export function generateStationMissions(
     targetStationId: targetStation.id,
     targetStationName: targetStation.name,
     reward: {
-      credits: Math.round(baseReward * 1.2),
+      credits: Math.round(baseReward * 1.35),
       freeUpgrade: Math.random() < 0.35 ? (Math.random() < 0.5 ? 'ENGINE' : 'CARGO') : undefined,
     },
     description: isVip
@@ -61,10 +62,11 @@ export function generateStationMissions(
   const client2 = CLIENT_NAMES[Math.floor(Math.random() * CLIENT_NAMES.length)];
   const bossNames = [
     'Captain Blood-Eye Vane', 'Warlord Kaelen the Unbroken', 'Dread Corsair Malakor',
-    'Rogue Warmaster Zephyr', 'Apex Outlaw Grim-Jaw', 'The Void Specter', 'Cyber-Pirate Null-Void'
+    'Rogue Warmaster Zephyr', 'Apex Outlaw Grim-Jaw', 'The Void Specter', 'Cyber-Pirate Null-Void',
+    'Warmaster Vraxis the Cruel', 'Admiral Sunder-Hull', 'Shadow Sovereign Malice'
   ];
   const targetBoss = bossNames[Math.floor(Math.random() * bossNames.length)];
-  const requiredKills = 1 + Math.floor(Math.min(4, playerTier / 8));
+  const requiredKills = 1 + Math.floor(Math.min(5, playerTier / 6));
   missions.push({
     id: `m_bounty_${station.id}_${Date.now()}_2`,
     type: 'BOUNTY_HUNT',
@@ -76,9 +78,9 @@ export function generateStationMissions(
     targetEnemiesRequired: requiredKills,
     targetEnemiesKilled: 0,
     reward: {
-      credits: Math.round(baseReward * 1.8),
+      credits: Math.round(baseReward * 2.0),
       freeUpgrade: Math.random() < 0.5 ? (Math.random() < 0.5 ? 'WEAPON' : 'SHIELD') : undefined,
-      hullBonus: 20,
+      hullBonus: Math.round(25 * (1 + (playerTier - 1) * 0.2)),
     },
     description: `A notorious outlaw warband led by ${targetBoss} is harassing shipping lanes. Destroy ${requiredKills} hostile warship(s) in this sector.`,
     dangerLevel: Math.min(10, sector.dangerLevel + 1),
@@ -87,8 +89,8 @@ export function generateStationMissions(
   });
 
   // 3. High-Value Mineral Core Extraction Contract
-  const mineral = MINERAL_LIST[Math.min(MINERAL_LIST.length - 1, Math.floor(Math.random() * (2 + Math.floor(playerTier / 5))))];
-  const requiredQty = Math.max(3, Math.min(20, Math.round(4 + (playerTier * 0.4))));
+  const mineral = MINERAL_LIST[Math.min(MINERAL_LIST.length - 1, Math.floor(Math.random() * (2 + Math.floor(playerTier / 4))))];
+  const requiredQty = Math.max(3, Math.min(25, Math.round(4 + (playerTier * 0.5))));
   const mineralClient = 'Titan Deep-Core Mining Cartel';
   missions.push({
     id: `m_mining_${station.id}_${Date.now()}_3`,
@@ -103,8 +105,8 @@ export function generateStationMissions(
     requiredMineralName: mineral.name,
     requiredMineralQty: requiredQty,
     reward: {
-      credits: Math.round(baseReward * 1.4 + (mineral.unitValue * requiredQty * 0.8)),
-      minerals: { id: mineral.id, quantity: 2 },
+      credits: Math.round(baseReward * 1.5 + (mineral.unitValue * requiredQty * 1.5)),
+      minerals: { id: mineral.id, quantity: Math.max(2, Math.round(playerTier * 0.5)) },
     },
     description: `Smelting complexes at ${station.name} require raw ${mineral.name}. Mine asteroids in the sector to obtain ${requiredQty} units and return here.`,
     dangerLevel: sector.dangerLevel,
@@ -112,9 +114,10 @@ export function generateStationMissions(
     penaltyCredits: Math.round(baseReward * 0.25),
   });
 
-  // 4. Sector Patrol & Convoy Escort (Tiers 4+)
-  if (playerTier >= 4) {
+  // 4. Sector Patrol & Convoy Escort (Tiers 3+)
+  if (playerTier >= 3) {
     const client4 = 'Frontier Security Command';
+    const reqEnemies = Math.min(6, 2 + Math.floor(playerTier / 5));
     missions.push({
       id: `m_patrol_${station.id}_${Date.now()}_4`,
       type: 'CONVOY_ESCORT',
@@ -124,13 +127,13 @@ export function generateStationMissions(
       sourceStationName: station.name,
       targetStationId: targetStation.id,
       targetStationName: targetStation.name,
-      targetEnemiesRequired: 3,
+      targetEnemiesRequired: reqEnemies,
       targetEnemiesKilled: 0,
       reward: {
-        credits: Math.round(baseReward * 2.1),
-        freeUpgrade: 'WEAPON',
+        credits: Math.round(baseReward * 2.4),
+        freeUpgrade: Math.random() < 0.6 ? 'WEAPON' : 'SHIELD',
       },
-      description: `Rogue warships are blockading the trade vector between ${station.name} and ${targetStation.name}. Clear the corridor and dock safely at ${targetStation.name}.`,
+      description: `Rogue warships are blockading the trade vector between ${station.name} and ${targetStation.name}. Clear ${reqEnemies} hostiles and dock safely at ${targetStation.name}.`,
       dangerLevel: Math.min(10, sector.dangerLevel + 2),
       status: 'AVAILABLE',
       penaltyCredits: Math.round(baseReward * 0.45),
