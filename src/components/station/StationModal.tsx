@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { SHIP_CLASSES, getShipClass, ESCORT_CLASSES } from '../../data/shipClasses';
 import { MINERAL_LIST, getMineral } from '../../data/minerals';
+import { getStationMineralPrice } from '../../data/economy';
 import {
   X,
   Fuel,
@@ -70,10 +71,10 @@ export const StationModal: React.FC = () => {
   const hullNeeded = Math.round(player.maxHull - player.hull);
   const hullCost = hullNeeded * activeStation.repairPricePerPoint;
 
-  // Total liquidation value of all minerals in cargo hold
+  // Total liquidation value of all minerals in cargo hold based on station dynamic rates
   const totalMineralEarnings = player.inventory.reduce((sum, item) => {
-    const min = getMineral(item.id);
-    return sum + min.unitValue * item.quantity;
+    const priceInfo = getStationMineralPrice(activeStation, item.id);
+    return sum + priceInfo.unitPrice * item.quantity;
   }, 0);
 
   // Upgrade costs & labels
@@ -490,26 +491,44 @@ export const StationModal: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                     {player.inventory.map((item) => {
                       const min = getMineral(item.id);
-                      const itemTotal = min.unitValue * item.quantity;
+                      const priceInfo = getStationMineralPrice(activeStation, item.id);
+                      const itemTotal = priceInfo.unitPrice * item.quantity;
+
+                      // Color coding for sell buttons based on station pricing:
+                      // High Price -> Green, Average Price -> Yellow, Low Price -> Red
+                      const buttonColorStyle =
+                        priceInfo.tier === 'HIGH'
+                          ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border border-emerald-300 shadow-glow-green'
+                          : priceInfo.tier === 'LOW'
+                          ? 'bg-rose-600 hover:bg-rose-500 text-white border border-rose-400 shadow-md'
+                          : 'bg-amber-500 hover:bg-amber-400 text-slate-950 border border-amber-300 shadow-glow-amber';
+
+                      const tierBadgeStyle =
+                        priceInfo.tier === 'HIGH'
+                          ? 'bg-emerald-950 text-emerald-300 border-emerald-500/60'
+                          : priceInfo.tier === 'LOW'
+                          ? 'bg-rose-950 text-rose-300 border-rose-500/60'
+                          : 'bg-amber-950 text-amber-300 border-amber-500/60';
+
                       return (
                         <div
                           key={item.id}
-                          className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${min.bgColor} ${min.borderColor}`}
+                          className={`p-3 rounded-xl border flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 ${min.bgColor} ${min.borderColor}`}
                         >
-                          <div className="flex items-center space-x-2.5">
+                          <div className="flex items-center space-x-2.5 min-w-0">
                             <div
                               className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-xs shadow-md shrink-0"
                               style={{ backgroundColor: `${min.color}25`, border: `1px solid ${min.color}` }}
                             >
                               <Gem className="w-5 h-5" style={{ color: min.color }} />
                             </div>
-                            <div>
-                              <div className="flex items-center space-x-1.5">
-                                <span className={`text-xs font-bold ${min.textColor}`}>
+                            <div className="min-w-0">
+                              <div className="flex items-center space-x-1.5 flex-wrap">
+                                <span className={`text-xs font-bold truncate ${min.textColor}`}>
                                   {min.name}
                                 </span>
                                 <span
-                                  className="text-[8px] px-1 py-0.2 rounded font-black border"
+                                  className="text-[8px] px-1 py-0.2 rounded font-black border shrink-0"
                                   style={{
                                     backgroundColor: `${min.color}20`,
                                     borderColor: min.color,
@@ -518,9 +537,12 @@ export const StationModal: React.FC = () => {
                                 >
                                   {min.rarity}
                                 </span>
+                                <span className={`text-[8px] px-1.5 py-0.2 rounded font-black border shrink-0 ${tierBadgeStyle}`}>
+                                  {priceInfo.tier === 'HIGH' ? '🔥 HIGH DEMAND' : priceInfo.tier === 'LOW' ? '⚠️ LOW PRICE' : 'AVG PRICE'}
+                                </span>
                               </div>
                               <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                                {item.quantity} Units • {min.unitValue} CR/ea ={' '}
+                                {item.quantity} Units • <span className="font-bold text-slate-200">{priceInfo.unitPrice} CR/ea</span> ({priceInfo.tierLabel}) ={' '}
                                 <span className="text-emerald-300 font-bold">+{itemTotal.toLocaleString()} CR</span>
                               </div>
                             </div>
@@ -528,9 +550,9 @@ export const StationModal: React.FC = () => {
 
                           <button
                             onClick={() => sellMineral(item.id)}
-                            className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all active:scale-95 cursor-pointer shrink-0"
+                            className={`px-3.5 py-2 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer shrink-0 w-full sm:w-auto text-center ${buttonColorStyle}`}
                           >
-                            Sell ({itemTotal.toLocaleString()} CR)
+                            SELL (+{itemTotal.toLocaleString()} CR)
                           </button>
                         </div>
                       );
@@ -547,30 +569,45 @@ export const StationModal: React.FC = () => {
                 )}
               </div>
 
-              {/* Scarcity & Market Guide */}
+              {/* Scarcity & Market Guide with Station Multipliers */}
               <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 space-y-2">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
                   <span className="text-xs font-bold text-slate-400">
-                    Galactic Mineral Value & Scarcity Catalog
+                    Station Mineral Market Rates & Demand Index
                   </span>
-                  <span className="text-[10px] text-slate-500">Universal Fixed Exchange Rates</span>
+                  <span className="text-[10px] text-cyan-400 font-bold">
+                    {activeStation.name.toUpperCase()} REFINERY INDEX
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 text-xs">
-                  {MINERAL_LIST.map((m) => (
-                    <div
-                      key={m.id}
-                      className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800"
-                    >
-                      <div className="flex items-center space-x-1.5 truncate">
-                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: m.color }} />
-                        <span className="text-slate-300 font-medium truncate text-[11px]">{m.name}</span>
+                  {MINERAL_LIST.map((m) => {
+                    const priceInfo = getStationMineralPrice(activeStation, m.id);
+                    const tagCol =
+                      priceInfo.tier === 'HIGH'
+                        ? 'text-emerald-400'
+                        : priceInfo.tier === 'LOW'
+                        ? 'text-rose-400'
+                        : 'text-amber-300';
+
+                    return (
+                      <div
+                        key={m.id}
+                        className="flex flex-col justify-between p-2 rounded-lg bg-slate-900 border border-slate-800 space-y-1"
+                      >
+                        <div className="flex items-center space-x-1.5 truncate">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: m.color }} />
+                          <span className="text-slate-300 font-medium truncate text-[11px]">{m.name}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] font-mono">
+                          <span className="text-slate-500">Base: {m.unitValue}</span>
+                          <span className={`font-bold ${tagCol}`}>
+                            {priceInfo.unitPrice} CR ({priceInfo.multiplier.toFixed(2)}x)
+                          </span>
+                        </div>
                       </div>
-                      <span className="font-bold font-mono text-yellow-300 shrink-0 ml-1 text-[11px]">
-                        {m.unitValue} CR
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -884,7 +921,9 @@ export const StationModal: React.FC = () => {
                         key={escortDef.type}
                         className={`p-3 rounded-xl border flex flex-col justify-between space-y-2 transition-all ${
                           isTierUnlocked
-                            ? 'bg-slate-900/90 border-slate-800 hover:border-purple-500/50'
+                            ? escortDef.isSpecialty
+                              ? 'bg-slate-900/95 border-cyan-500/50 hover:border-cyan-400 shadow-md'
+                              : 'bg-slate-900/90 border-slate-800 hover:border-purple-500/50'
                             : 'bg-slate-950/50 border-slate-900 opacity-60'
                         }`}
                       >
@@ -897,26 +936,35 @@ export const StationModal: React.FC = () => {
                               />
                               <span className="text-xs font-bold text-white">{escortDef.name}</span>
                             </div>
-                            <span
-                              className="text-[9px] px-1.5 py-0.2 rounded font-mono font-bold"
-                              style={{
-                                backgroundColor: `${escortDef.color}20`,
-                                color: escortDef.color,
-                                border: `1px solid ${escortDef.color}40`,
-                              }}
-                            >
-                              {escortDef.type}
-                            </span>
+                            <div className="flex items-center space-x-1">
+                              {escortDef.isSpecialty && (
+                                <span className="text-[8px] px-1.5 py-0.2 rounded font-black bg-cyan-950 text-cyan-300 border border-cyan-500/50">
+                                  SPECIALTY
+                                </span>
+                              )}
+                              <span
+                                className="text-[9px] px-1.5 py-0.2 rounded font-mono font-bold"
+                                style={{
+                                  backgroundColor: `${escortDef.color}20`,
+                                  color: escortDef.color,
+                                  border: `1px solid ${escortDef.color}40`,
+                                }}
+                              >
+                                {escortDef.type}
+                              </span>
+                            </div>
                           </div>
 
                           <p className="text-[11px] text-slate-300 mt-1 line-clamp-2">
                             {escortDef.description}
                           </p>
 
-                          <div className="flex items-center space-x-3 text-[10px] font-mono text-cyan-300 mt-1.5">
+                          <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono text-cyan-300 mt-1.5">
                             <span>HP: {escortDef.hull}</span>
+                            <span>•</span>
                             <span>Shield: {escortDef.shield}</span>
-                            <span>DPS: ~{Math.round(escortDef.damage / escortDef.fireCooldown)}</span>
+                            <span>•</span>
+                            <span className="text-amber-300">{escortDef.perks}</span>
                           </div>
                         </div>
 
@@ -930,7 +978,9 @@ export const StationModal: React.FC = () => {
                             disabled={!canBuy}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                               isTierUnlocked
-                                ? 'bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-md'
+                                ? escortDef.isSpecialty
+                                  ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black shadow-glow-cyan disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer'
+                                  : 'bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-md'
                                 : 'bg-slate-800 text-slate-500 cursor-not-allowed text-[10px]'
                             }`}
                           >

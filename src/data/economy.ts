@@ -144,3 +144,92 @@ export function generateStationMarket(station: Station): MarketItem[] {
     };
   });
 }
+
+export type MineralPriceTier = 'LOW' | 'AVERAGE' | 'HIGH';
+
+export interface StationMineralPriceInfo {
+  unitPrice: number;
+  multiplier: number;
+  tier: MineralPriceTier;
+  tierLabel: string;
+}
+
+import { getMineral } from './minerals';
+
+export function getStationMineralPrice(
+  station: Station | null | undefined,
+  mineralId: string
+): StationMineralPriceInfo {
+  const mineral = getMineral(mineralId);
+  if (!station) {
+    return {
+      unitPrice: mineral.unitValue,
+      multiplier: 1.0,
+      tier: 'AVERAGE',
+      tierLabel: '1.0x (Average)',
+    };
+  }
+
+  let mult = 1.0;
+  if (station.mineralPriceMultipliers && station.mineralPriceMultipliers[mineralId] !== undefined) {
+    mult = station.mineralPriceMultipliers[mineralId];
+  } else {
+    // Generate deterministic multiplier from station id + mineral id + station type
+    let hash = 0;
+    const str = `${station.id}_${mineralId}_${station.type}`;
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash * 31 + str.charCodeAt(i)) & 0xffffffff;
+    }
+    const rand = Math.abs(hash % 1000) / 1000; // 0.0 to 0.999
+
+    // Station type bias:
+    let baseBias = 0.0;
+    if (station.type === 'MINING') {
+      if (mineralId === 'iron_ore' || mineralId === 'copper_ore' || mineralId === 'titanium_ore') {
+        baseBias = -0.22;
+      } else {
+        baseBias = 0.05;
+      }
+    } else if (station.type === 'HIGH_TECH') {
+      if (
+        mineralId === 'platinum_ore' ||
+        mineralId === 'palladium_ore' ||
+        mineralId === 'quantum_shard' ||
+        mineralId === 'antimatter_crystal'
+      ) {
+        baseBias = 0.28;
+      }
+    } else if (station.type === 'OUTLAW') {
+      if (mineralId === 'dark_matter_node' || mineralId === 'void_singularity_core') {
+        baseBias = 0.32;
+      }
+    } else if (station.type === 'INDUSTRIAL') {
+      if (mineralId === 'titanium_ore' || mineralId === 'cobalt_ore') {
+        baseBias = 0.20;
+      }
+    }
+
+    // Range: ~0.65x to ~1.45x
+    mult = Math.max(0.65, Math.min(1.45, Number((0.72 + rand * 0.58 + baseBias).toFixed(2))));
+  }
+
+  const unitPrice = Math.max(1, Math.round(mineral.unitValue * mult));
+
+  let tier: MineralPriceTier = 'AVERAGE';
+  let tierLabel = `${mult.toFixed(2)}x (Avg)`;
+
+  if (mult < 0.88) {
+    tier = 'LOW';
+    tierLabel = `${mult.toFixed(2)}x (Low)`;
+  } else if (mult > 1.12) {
+    tier = 'HIGH';
+    tierLabel = `${mult.toFixed(2)}x (High Demand)`;
+  }
+
+  return {
+    unitPrice,
+    multiplier: mult,
+    tier,
+    tierLabel,
+  };
+}

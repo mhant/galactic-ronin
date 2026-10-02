@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../../store/useGameStore';
-import { GameMode } from '../../types/game';
 import { SaveSlotModal } from './SaveSlotModal';
 import {
   HelpCircle,
@@ -8,23 +7,16 @@ import {
   VolumeX,
   Music,
   Award,
-  Sparkles,
 } from 'lucide-react';
 
 export const MainMenu: React.FC = () => {
   const [showControls, setShowControls] = useState(false);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
-  const [selectedMode, setSelectedMode] = useState<GameMode>('STORY');
 
   const musicEnabled = useGameStore((state) => state.musicEnabled);
   const sfxEnabled = useGameStore((state) => state.sfxEnabled);
   const toggleMusic = useGameStore((state) => state.toggleMusic);
   const toggleSFX = useGameStore((state) => state.toggleSFX);
-
-  const openSaveSlots = (mode: GameMode) => {
-    setSelectedMode(mode);
-    setSaveModalOpen(true);
-  };
 
   return (
     <div className="fixed inset-0 z-50 bg-space-900/95 flex flex-col items-center justify-center p-4 sm:p-6 select-none font-mono overflow-y-auto">
@@ -48,42 +40,22 @@ export const MainMenu: React.FC = () => {
           </p>
         </div>
 
-        {/* Mode Action Buttons */}
+        {/* Play Action Button */}
         <div className="space-y-3 max-w-sm mx-auto">
-          {/* Story Campaign Button */}
           <button
-            onClick={() => openSaveSlots('STORY')}
-            className="w-full py-4 px-5 rounded-2xl bg-gradient-to-r from-cyan-500 to-teal-400 hover:from-cyan-400 hover:to-teal-300 text-slate-950 font-black text-sm tracking-wider transition-all duration-150 active:scale-95 shadow-2xl shadow-cyan-500/40 flex items-center justify-between cursor-pointer group"
+            onClick={() => setSaveModalOpen(true)}
+            className="w-full py-4 px-5 rounded-2xl bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 font-black text-sm tracking-wider transition-all duration-150 active:scale-95 shadow-2xl shadow-cyan-500/40 flex items-center justify-between cursor-pointer group"
           >
             <div className="flex items-center space-x-3">
-              <div className="p-2 rounded-xl bg-slate-950/20">
-                <Award className="w-5 h-5 text-slate-950 group-hover:scale-110 transition-transform" />
+              <div className="p-2.5 rounded-xl bg-slate-950/20 group-hover:scale-110 transition-transform">
+                <Award className="w-5 h-5 text-slate-950" />
               </div>
               <div className="text-left">
-                <div className="text-sm font-black text-slate-950">STORY CAMPAIGN</div>
-                <div className="text-[10px] text-slate-800 font-bold">Courier Contracts, Bounties & Lore</div>
+                <div className="text-sm font-black text-slate-950 tracking-wide">ENTER THE GALAXY / PLAY</div>
+                <div className="text-[10px] text-slate-800 font-bold">Contracts, Story Lore & Fleet Battles</div>
               </div>
             </div>
-            <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-950 text-cyan-300 font-bold">
-              3 SLOTS
-            </span>
-          </button>
-
-          {/* Free Play Sandbox Button */}
-          <button
-            onClick={() => openSaveSlots('FREE_PLAY')}
-            className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-sm tracking-wider transition-all duration-150 active:scale-95 shadow-2xl shadow-purple-600/30 flex items-center justify-between cursor-pointer group"
-          >
-            <div className="flex items-center space-x-3">
-              <div className="p-2 rounded-xl bg-white/10">
-                <Sparkles className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
-              </div>
-              <div className="text-left">
-                <div className="text-sm font-black text-white">FREE PLAY SANDBOX</div>
-                <div className="text-[10px] text-purple-200 font-bold">Unrestricted Exploration & Battles</div>
-              </div>
-            </div>
-            <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-950 text-purple-300 font-bold border border-purple-400/40">
+            <span className="text-[11px] px-2.5 py-1 rounded-full bg-slate-950 text-cyan-300 font-black">
               3 SLOTS
             </span>
           </button>
@@ -153,7 +125,6 @@ export const MainMenu: React.FC = () => {
       <SaveSlotModal
         isOpen={saveModalOpen}
         onClose={() => setSaveModalOpen(false)}
-        defaultMode={selectedMode}
       />
     </div>
   );

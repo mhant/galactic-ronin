@@ -1801,6 +1801,7 @@ export class GameEngine {
       let evy = escort.vy;
       let erot = escort.rotation;
       let fireCd = Math.max(0, escort.fireCooldown - dt);
+      let currentMiningTargetId: string | null = null;
 
       // Check EMP stun on escort ship
       const escortStun = Math.max(0, (escort.stunDuration || 0) - dt);
@@ -1842,7 +1843,112 @@ export class GameEngine {
 
       if (escort.owner === 'PLAYER') {
         // === PLAYER ESCORT ===
-        if (armadaStance === 'DEFEND') {
+
+        // Specialty 1: Auto-Mining Barge
+        if (escort.type === 'MINING_BARGE') {
+          // Look for closest asteroid within 480px
+          let closestAst: Asteroid | null = null;
+          let minAstDist = 480;
+          const liveAsteroids = world.asteroids || [];
+          for (const ast of liveAsteroids) {
+            if (ast.health > 0) {
+              const d = Math.hypot(ast.x - ex, ast.y - ey);
+              if (d < minAstDist) {
+                minAstDist = d;
+                closestAst = ast;
+              }
+            }
+          }
+
+          if (closestAst) {
+            currentMiningTargetId = closestAst.id;
+            const aimAngle = Math.atan2(closestAst.y - ey, closestAst.x - ex);
+            erot = aimAngle;
+            // Approach asteroid up to 180px distance
+            if (minAstDist > 180) {
+              evx += (Math.cos(aimAngle) * 220 - evx) * Math.min(1, 3.5 * dt);
+              evy += (Math.sin(aimAngle) * 220 - evy) * Math.min(1, 3.5 * dt);
+            } else {
+              evx *= Math.max(0, 1 - 2 * dt);
+              evy *= Math.max(0, 1 - 2 * dt);
+            }
+
+            // Apply mining damage to asteroid
+            const miningDps = 85;
+            state.damageAsteroid(closestAst.id, miningDps * dt);
+
+            // Turquoise mining beam impact spark particles on asteroid
+            if (Math.random() < 0.4) {
+              const sparkAngle = Math.random() * Math.PI * 2;
+              this.particles.push({
+                x: closestAst.x + (Math.random() - 0.5) * 16,
+                y: closestAst.y + (Math.random() - 0.5) * 16,
+                vx: Math.cos(sparkAngle) * 60,
+                vy: Math.sin(sparkAngle) * 60,
+                color: '#06B6D4',
+                size: 1.5,
+                alpha: 0.85,
+                lifetime: 0.2,
+                maxLifetime: 0.2,
+              });
+            }
+          }
+        }
+
+        // Specialty 2: Shield Projector Dome (Neutralizes incoming enemy fire within 130px)
+        if (escort.type === 'SHIELD_PROJECTOR') {
+          for (const ep of enemyProjsForEscort) {
+            if (ep.lifetime > 0) {
+              const dp = Math.hypot(ep.x - ex, ep.y - ey);
+              if (dp < 130) {
+                ep.lifetime = 0;
+                this.spawnExplosionParticles(ep.x, ep.y, '#00F0FF', 8);
+              }
+            }
+          }
+        }
+
+        // Specialty 3: Nanite Repair Tender (Heals player and friendly fleet every 2.5s)
+        if (escort.type === 'REPAIR_TENDER') {
+          if (fireCd <= 0) {
+            fireCd = 2.5;
+            const distToPlayer = Math.hypot(newX - ex, newY - ey);
+            if (distToPlayer < 340) {
+              useGameStore.setState((s) => ({
+                player: { ...s.player, hull: Math.min(s.player.maxHull, s.player.hull + 15) },
+                ship: { ...s.ship, shield: Math.min(s.ship.maxShield, s.ship.shield + 20) },
+              }));
+            }
+            // Heal friendly escorts in range
+            for (const otherEsc of allEscorts) {
+              if (otherEsc.owner === 'PLAYER') {
+                const distToOther = Math.hypot(otherEsc.x - ex, otherEsc.y - ey);
+                if (distToOther < 340) {
+                  otherEsc.hull = Math.min(otherEsc.maxHull, otherEsc.hull + 25);
+                  otherEsc.shield = Math.min(otherEsc.maxShield, otherEsc.shield + 25);
+                }
+              }
+            }
+            // Healing pulse particles
+            for (let i = 0; i < 8; i++) {
+              const pulseAng = (i / 8) * Math.PI * 2;
+              this.particles.push({
+                x: ex,
+                y: ey,
+                vx: Math.cos(pulseAng) * 80,
+                vy: Math.sin(pulseAng) * 80,
+                color: '#10B981',
+                size: 2.5,
+                alpha: 0.9,
+                lifetime: 0.35,
+                maxLifetime: 0.35,
+              });
+            }
+          }
+        }
+
+        // Standard Movement / Formation
+        if (armadaStance === 'DEFEND' && escort.type !== 'MINING_BARGE') {
           // Tight wingman formation protecting player
           const formationRadius = 48 * playerScaleVal + escort.formationDist;
           const targetFormationAngle = rot + escort.formationAngle;
@@ -1858,7 +1964,7 @@ export class GameEngine {
           evy += (Math.sin(moveAngle) * desiredSpeed - evy) * Math.min(1, 4.5 * dt);
           erot = rot;
 
-          // A. Intercept enemy projectiles close to player/escort
+          // Intercept enemy projectiles close to player/escort
           for (const ep of enemyProjsForEscort) {
             const dp = Math.hypot(ep.x - ex, ep.y - ey);
             if (dp < 160) {
@@ -1869,15 +1975,15 @@ export class GameEngine {
             }
           }
 
-          // B. Defend: shoot hostiles within 440px (checks regular enemies and enemy escorts)
+          // Combat Firing in DEFEND stance
           if (fireCd <= 0 && (liveEnemiesForBeam.length > 0 || liveEnemyEscorts.length > 0)) {
-            let closeTarget: { x: number; y: number } | null = null;
-            let closeDist = 440;
+            let closeTarget: { x: number; y: number; id?: string } | null = null;
+            let closeDist = 480;
             for (const en of liveEnemiesForBeam) {
               const d = Math.hypot(en.x - ex, en.y - ey);
               if (d < closeDist) {
                 closeDist = d;
-                closeTarget = { x: en.x, y: en.y };
+                closeTarget = { x: en.x, y: en.y, id: en.id };
               }
             }
             if (!closeTarget) {
@@ -1885,41 +1991,79 @@ export class GameEngine {
                 const d = Math.hypot(ee.x - ex, ee.y - ey);
                 if (d < closeDist) {
                   closeDist = d;
-                  closeTarget = { x: ee.x, y: ee.y };
+                  closeTarget = { x: ee.x, y: ee.y, id: ee.id };
                 }
               }
             }
             if (closeTarget) {
-              fireCd = escort.type === 'GUNSHIP' ? 0.35 : 0.28;
               const aimAngle = Math.atan2(closeTarget.y - ey, closeTarget.x - ex);
-              const laserSpeed = 920;
-              const dmg = escort.type === 'GUNSHIP' ? 38 : 26;
-              state.addProjectile({
-                id: `p_escort_${Date.now()}_${Math.random()}`,
-                owner: 'PLAYER',
-                type: 'LASER',
-                x: ex + Math.cos(aimAngle) * 14,
-                y: ey + Math.sin(aimAngle) * 14,
-                vx: evx + Math.cos(aimAngle) * laserSpeed,
-                vy: evy + Math.sin(aimAngle) * laserSpeed,
-                damage: dmg,
-                lifetime: 1.6,
-                color: escort.type === 'GUNSHIP' ? '#FBBF24' : '#34D399',
-              });
-              SoundManager.playLaser(false);
+
+              if (escort.type === 'MISSILE_CRUISER') {
+                // Specialty: Endless Photon Torpedo Salvos
+                fireCd = 3.5;
+                state.addProjectile({
+                  id: `p_escort_torp_${Date.now()}_${Math.random()}`,
+                  owner: 'PLAYER',
+                  type: 'TORPEDO',
+                  x: ex + Math.cos(aimAngle) * 16,
+                  y: ey + Math.sin(aimAngle) * 16,
+                  vx: evx + Math.cos(aimAngle) * 600,
+                  vy: evy + Math.sin(aimAngle) * 600,
+                  damage: 220,
+                  lifetime: 3.8,
+                  color: '#F97316',
+                  targetEnemyId: closeTarget.id,
+                });
+                SoundManager.playTorpedoLaunch();
+              } else if (escort.type !== 'SHIELD_PROJECTOR' && escort.type !== 'REPAIR_TENDER') {
+                // Combat Warships
+                const escortDmg =
+                  escort.type === 'RONIN_WARMASTER' ? 550 :
+                  escort.type === 'BATTLECRUISER' ? 260 :
+                  escort.type === 'DESTROYER' ? 130 :
+                  escort.type === 'FRIGATE' ? 62 :
+                  escort.type === 'GUNSHIP' ? 38 : 26;
+
+                const escortCol =
+                  escort.type === 'RONIN_WARMASTER' ? '#FFDD00' :
+                  escort.type === 'BATTLECRUISER' ? '#EC4899' :
+                  escort.type === 'DESTROYER' ? '#A855F7' :
+                  escort.type === 'FRIGATE' ? '#38BDF8' :
+                  escort.type === 'GUNSHIP' ? '#FBBF24' : '#34D399';
+
+                fireCd = escort.type === 'RONIN_WARMASTER' ? 0.18 :
+                         escort.type === 'BATTLECRUISER' ? 0.25 :
+                         escort.type === 'DESTROYER' ? 0.32 :
+                         escort.type === 'FRIGATE' ? 0.36 :
+                         escort.type === 'GUNSHIP' ? 0.30 : 0.22;
+
+                state.addProjectile({
+                  id: `p_escort_${Date.now()}_${Math.random()}`,
+                  owner: 'PLAYER',
+                  type: 'LASER',
+                  x: ex + Math.cos(aimAngle) * 14,
+                  y: ey + Math.sin(aimAngle) * 14,
+                  vx: evx + Math.cos(aimAngle) * 920,
+                  vy: evy + Math.sin(aimAngle) * 920,
+                  damage: escortDmg,
+                  lifetime: 1.6,
+                  color: escortCol,
+                });
+                SoundManager.playLaser(false);
+              }
             }
           }
-        } else {
+        } else if (armadaStance === 'ATTACK' && escort.type !== 'MINING_BARGE') {
           // === ATTACK STANCE ===
-          // Swarm and focus fire closest enemy, player's beam target, or enemy escort
-          const targetEnemy: { x: number; y: number } | null =
+          const targetEnemy: { x: number; y: number; id?: string } | null =
             this.playerBeamTarget ||
             (liveEnemiesForBeam.length > 0 ? liveEnemiesForBeam[0] : null) ||
             (liveEnemyEscorts.length > 0 ? liveEnemyEscorts[0] : null);
+
           if (targetEnemy) {
             const distToEnemy = Math.hypot(targetEnemy.x - ex, targetEnemy.y - ey);
             const attackOffsetAngle = escort.formationAngle;
-            const orbitDist = 180;
+            const orbitDist = 190;
             const targetAttackX = targetEnemy.x + Math.cos(attackOffsetAngle) * orbitDist;
             const targetAttackY = targetEnemy.y + Math.sin(attackOffsetAngle) * orbitDist;
 
@@ -1933,22 +2077,58 @@ export class GameEngine {
             const rotDiff = Math.atan2(Math.sin(aimAngle - erot), Math.cos(aimAngle - erot));
             erot += Math.sign(rotDiff) * Math.min(Math.abs(rotDiff), 5.5 * dt);
 
-            if (distToEnemy < 520 && Math.abs(rotDiff) < 0.45 && fireCd <= 0) {
-              fireCd = escort.type === 'GUNSHIP' ? 0.32 : 0.24;
-              const dmg = escort.type === 'GUNSHIP' ? 42 : 28;
-              state.addProjectile({
-                id: `p_escort_${Date.now()}_${Math.random()}`,
-                owner: 'PLAYER',
-                type: 'LASER',
-                x: ex + Math.cos(erot) * 14,
-                y: ey + Math.sin(erot) * 14,
-                vx: evx + Math.cos(erot) * 940,
-                vy: evy + Math.sin(erot) * 940,
-                damage: dmg,
-                lifetime: 1.6,
-                color: escort.type === 'GUNSHIP' ? '#FBBF24' : '#34D399',
-              });
-              SoundManager.playLaser(false);
+            if (distToEnemy < 560 && Math.abs(rotDiff) < 0.5 && fireCd <= 0) {
+              if (escort.type === 'MISSILE_CRUISER') {
+                fireCd = 3.5;
+                state.addProjectile({
+                  id: `p_escort_torp_${Date.now()}_${Math.random()}`,
+                  owner: 'PLAYER',
+                  type: 'TORPEDO',
+                  x: ex + Math.cos(erot) * 16,
+                  y: ey + Math.sin(erot) * 16,
+                  vx: evx + Math.cos(erot) * 620,
+                  vy: evy + Math.sin(erot) * 620,
+                  damage: 220,
+                  lifetime: 3.8,
+                  color: '#F97316',
+                  targetEnemyId: targetEnemy.id,
+                });
+                SoundManager.playTorpedoLaunch();
+              } else if (escort.type !== 'SHIELD_PROJECTOR' && escort.type !== 'REPAIR_TENDER') {
+                const escortDmg =
+                  escort.type === 'RONIN_WARMASTER' ? 550 :
+                  escort.type === 'BATTLECRUISER' ? 260 :
+                  escort.type === 'DESTROYER' ? 130 :
+                  escort.type === 'FRIGATE' ? 62 :
+                  escort.type === 'GUNSHIP' ? 42 : 28;
+
+                const escortCol =
+                  escort.type === 'RONIN_WARMASTER' ? '#FFDD00' :
+                  escort.type === 'BATTLECRUISER' ? '#EC4899' :
+                  escort.type === 'DESTROYER' ? '#A855F7' :
+                  escort.type === 'FRIGATE' ? '#38BDF8' :
+                  escort.type === 'GUNSHIP' ? '#FBBF24' : '#34D399';
+
+                fireCd = escort.type === 'RONIN_WARMASTER' ? 0.18 :
+                         escort.type === 'BATTLECRUISER' ? 0.25 :
+                         escort.type === 'DESTROYER' ? 0.32 :
+                         escort.type === 'FRIGATE' ? 0.36 :
+                         escort.type === 'GUNSHIP' ? 0.30 : 0.22;
+
+                state.addProjectile({
+                  id: `p_escort_${Date.now()}_${Math.random()}`,
+                  owner: 'PLAYER',
+                  type: 'LASER',
+                  x: ex + Math.cos(erot) * 14,
+                  y: ey + Math.sin(erot) * 14,
+                  vx: evx + Math.cos(erot) * 940,
+                  vy: evy + Math.sin(erot) * 940,
+                  damage: escortDmg,
+                  lifetime: 1.6,
+                  color: escortCol,
+                });
+                SoundManager.playLaser(false);
+              }
             }
           } else {
             // No enemies: search for nearby floating loot pods to vacuum
@@ -2045,6 +2225,7 @@ export class GameEngine {
         vy: evy,
         rotation: erot,
         fireCooldown: fireCd,
+        miningTargetId: currentMiningTargetId,
         stunDuration: 0,
       };
 
@@ -2070,6 +2251,7 @@ export class GameEngine {
             vy: sim.vy,
             rotation: sim.rotation,
             fireCooldown: sim.fireCooldown,
+            miningTargetId: sim.miningTargetId,
             stunDuration: sim.stunDuration,
           }
         : esc;
@@ -3748,23 +3930,81 @@ export class GameEngine {
     vw: number,
     vh: number
   ) {
-    const minX = playerX - vw / 2 - 120;
-    const maxX = playerX + vw / 2 + 120;
-    const minY = playerY - vh / 2 - 120;
-    const maxY = playerY + vh / 2 + 120;
+    const minX = playerX - vw / 2 - 150;
+    const maxX = playerX + vw / 2 + 150;
+    const minY = playerY - vh / 2 - 150;
+    const maxY = playerY + vh / 2 + 150;
+    const liveAsteroids = useGameStore.getState().world.asteroids || [];
 
     for (const esc of escorts) {
       if (esc.x < minX || esc.x > maxX || esc.y < minY || esc.y > maxY) continue;
 
+      const isPlayer = esc.owner === 'PLAYER';
+
+      // 1. Render Specialty Mining Laser Beam for Auto-Mining Barge
+      if (esc.type === 'MINING_BARGE' && esc.miningTargetId) {
+        const targetAst = liveAsteroids.find((a) => a.id === esc.miningTargetId && a.health > 0);
+        if (targetAst) {
+          ctx.save();
+          // Turquoise mining laser beam
+          ctx.strokeStyle = 'rgba(6, 182, 212, 0.45)';
+          ctx.lineWidth = 6;
+          ctx.beginPath();
+          ctx.moveTo(esc.x, esc.y);
+          ctx.lineTo(targetAst.x, targetAst.y);
+          ctx.stroke();
+
+          ctx.strokeStyle = '#22D3EE';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.moveTo(esc.x, esc.y);
+          ctx.lineTo(targetAst.x, targetAst.y);
+          ctx.stroke();
+
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(esc.x, esc.y);
+          ctx.lineTo(targetAst.x, targetAst.y);
+          ctx.stroke();
+
+          // Target impact burn ring
+          ctx.fillStyle = '#06B6D4';
+          ctx.beginPath();
+          ctx.arc(targetAst.x, targetAst.y, 7 + Math.random() * 4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
       ctx.save();
       ctx.translate(esc.x, esc.y);
 
-      const isPlayer = esc.owner === 'PLAYER';
-      const isGunship = esc.type === 'GUNSHIP';
-      const hullColor = isPlayer ? (isGunship ? '#064e3b' : '#0f172a') : '#311018';
-      const strokeColor = isPlayer ? (isGunship ? '#FBBF24' : '#34D399') : '#EF4444';
+      // 2. Specialty Shield Dome Projector (Wide 130px Deflector Barrier)
+      if (esc.type === 'SHIELD_PROJECTOR') {
+        ctx.save();
+        const pulse = (Math.sin(Date.now() * 0.005) + 1) * 0.5;
+        ctx.strokeStyle = `rgba(0, 240, 255, ${0.35 + pulse * 0.25})`;
+        ctx.lineWidth = 2.0;
+        ctx.setLineDash([10, 6]);
+        ctx.beginPath();
+        ctx.arc(0, 0, 130, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
 
-      // Deflector Shield Aura
+        ctx.fillStyle = `rgba(0, 240, 255, ${0.05 + pulse * 0.04})`;
+        ctx.beginPath();
+        ctx.arc(0, 0, 130, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.font = 'bold 8px monospace';
+        ctx.fillStyle = '#00F0FF';
+        ctx.textAlign = 'center';
+        ctx.fillText('SHIELD BUBBLE (130u)', 0, -134);
+        ctx.restore();
+      }
+
+      // Base Deflector Shield Aura
       if (esc.shield > 0) {
         const sPct = esc.shield / esc.maxShield;
         ctx.strokeStyle = isPlayer
@@ -3772,28 +4012,72 @@ export class GameEngine {
           : `rgba(239, 68, 68, ${0.25 + sPct * 0.3})`;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.arc(0, 0, isGunship ? 18 : 14, 0, Math.PI * 2);
+        ctx.arc(0, 0, 16, 0, Math.PI * 2);
         ctx.stroke();
       }
 
       ctx.rotate(esc.rotation);
 
       // Thruster trail
-      ctx.fillStyle = isPlayer ? (isGunship ? '#F59E0B' : '#10B981') : '#FF3366';
+      const thrusterColor =
+        esc.type === 'MINING_BARGE' ? '#06B6D4' :
+        esc.type === 'MISSILE_CRUISER' ? '#F97316' :
+        esc.type === 'SHIELD_PROJECTOR' ? '#00F0FF' :
+        esc.type === 'REPAIR_TENDER' ? '#10B981' :
+        esc.type === 'RONIN_WARMASTER' ? '#FFDD00' :
+        isPlayer ? '#34D399' : '#FF3366';
+
+      ctx.fillStyle = thrusterColor;
       ctx.beginPath();
-      ctx.moveTo(-6, -2);
-      ctx.lineTo(-12 - Math.random() * 5, 0);
-      ctx.lineTo(-6, 2);
+      ctx.moveTo(-6, -2.5);
+      ctx.lineTo(-13 - Math.random() * 5, 0);
+      ctx.lineTo(-6, 2.5);
       ctx.closePath();
       ctx.fill();
 
-      // Escort Chassis Path
-      ctx.fillStyle = hullColor;
-      ctx.strokeStyle = strokeColor;
+      // Custom Chassis Render per Escort Type
+      ctx.fillStyle = isPlayer ? '#0f172a' : '#311018';
+      ctx.strokeStyle = thrusterColor;
       ctx.lineWidth = 1.8;
 
       ctx.beginPath();
-      if (isGunship) {
+      if (esc.type === 'MINING_BARGE') {
+        // Heavy industrial mining barge (Hexagonal prow with dual laser cutters)
+        ctx.moveTo(14, -6);
+        ctx.lineTo(14, 6);
+        ctx.lineTo(6, 12);
+        ctx.lineTo(-10, 12);
+        ctx.lineTo(-12, 0);
+        ctx.lineTo(-10, -12);
+        ctx.lineTo(6, -12);
+      } else if (esc.type === 'MISSILE_CRUISER') {
+        // Missile Cruiser (Elongated cruiser with twin torpedo pods)
+        ctx.moveTo(16, 0);
+        ctx.lineTo(6, 6);
+        ctx.lineTo(2, 12); // Starboard torpedo pod
+        ctx.lineTo(-10, 12);
+        ctx.lineTo(-8, 5);
+        ctx.lineTo(-12, 0);
+        ctx.lineTo(-8, -5);
+        ctx.lineTo(-10, -12);
+        ctx.lineTo(2, -12); // Port torpedo pod
+        ctx.lineTo(6, -6);
+      } else if (esc.type === 'SHIELD_PROJECTOR') {
+        // Shield Projector (Command ring dome with central emitter)
+        ctx.arc(0, 0, 9, 0, Math.PI * 2);
+      } else if (esc.type === 'REPAIR_TENDER') {
+        // Nanite Repair Tender (Twin-hull catamaran)
+        ctx.moveTo(12, -8);
+        ctx.lineTo(12, -3);
+        ctx.lineTo(6, 0);
+        ctx.lineTo(12, 3);
+        ctx.lineTo(12, 8);
+        ctx.lineTo(-10, 8);
+        ctx.lineTo(-8, 3);
+        ctx.lineTo(-6, 0);
+        ctx.lineTo(-8, -3);
+        ctx.lineTo(-10, -8);
+      } else if (esc.type === 'GUNSHIP') {
         // Heavy Gunship (Broad delta with twin cannons)
         ctx.moveTo(12, 0);
         ctx.lineTo(4, 8);
@@ -3801,9 +4085,19 @@ export class GameEngine {
         ctx.lineTo(-6, 0);
         ctx.lineTo(-8, -10);
         ctx.lineTo(4, -8);
+      } else if (esc.type === 'RONIN_WARMASTER') {
+        // Apex Warmaster (Large triple-hull flagship)
+        ctx.moveTo(18, 0);
+        ctx.lineTo(8, -10);
+        ctx.lineTo(12, -14);
+        ctx.lineTo(-12, -14);
+        ctx.lineTo(-8, 0);
+        ctx.lineTo(-12, 14);
+        ctx.lineTo(12, 14);
+        ctx.lineTo(8, 10);
       } else {
-        // Interceptor Fighter (Sharp needle wing)
-        ctx.moveTo(11, 0);
+        // Interceptor Fighter / Frigate / Destroyer
+        ctx.moveTo(12, 0);
         ctx.lineTo(2, 6);
         ctx.lineTo(-7, 7);
         ctx.lineTo(-4, 0);
@@ -3814,14 +4108,18 @@ export class GameEngine {
       ctx.fill();
       ctx.stroke();
 
-      // Wingtip weapons
-      ctx.fillStyle = strokeColor;
-      if (isGunship) {
-        ctx.fillRect(0, -9, 5, 2);
-        ctx.fillRect(0, 7, 5, 2);
+      // Core Emitter / Weapon Tips
+      ctx.fillStyle = thrusterColor;
+      if (esc.type === 'SHIELD_PROJECTOR') {
+        ctx.beginPath();
+        ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (esc.type === 'REPAIR_TENDER') {
+        ctx.fillRect(-2, -4, 4, 8);
+        ctx.fillRect(-4, -2, 8, 4);
       } else {
-        ctx.fillRect(0, -6.5, 3.5, 1.5);
-        ctx.fillRect(0, 5, 3.5, 1.5);
+        ctx.fillRect(4, -5, 3, 1.5);
+        ctx.fillRect(4, 3.5, 3, 1.5);
       }
 
       ctx.rotate(-esc.rotation);
@@ -3831,25 +4129,25 @@ export class GameEngine {
         ctx.strokeStyle = '#00F0FF';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        const stunR = (isGunship ? 18 : 14) + Math.sin(Date.now() * 0.02) * 2;
+        const stunR = 18 + Math.sin(Date.now() * 0.02) * 2;
         ctx.arc(0, 0, stunR, 0, Math.PI * 2);
         ctx.stroke();
       }
 
       // Health bar & status tag
       const hpPct = Math.max(0, Math.min(1, esc.hull / esc.maxHull));
-      const barW = 20;
+      const barW = 22;
       ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
       ctx.fillRect(-barW / 2, -18, barW, 2.5);
-      ctx.fillStyle = strokeColor;
+      ctx.fillStyle = thrusterColor;
       ctx.fillRect(-barW / 2, -18, barW * hpPct, 2.5);
 
       ctx.font = 'bold 7px monospace';
-      ctx.fillStyle = esc.stunDuration && esc.stunDuration > 0 ? '#00F0FF' : strokeColor;
+      ctx.fillStyle = esc.stunDuration && esc.stunDuration > 0 ? '#00F0FF' : thrusterColor;
       ctx.textAlign = 'center';
       const escortLabel = esc.stunDuration && esc.stunDuration > 0
         ? `⚡ [EMP ${esc.stunDuration.toFixed(1)}s]`
-        : isPlayer ? (isGunship ? 'GUNSHIP' : 'ESCORT') : 'RAIDER';
+        : isPlayer ? esc.name.toUpperCase().split(' ')[0] : 'RAIDER';
       ctx.fillText(escortLabel, 0, -22);
 
       ctx.restore();

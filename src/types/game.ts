@@ -32,6 +32,7 @@ export interface Station {
   description: string;
   fuelPricePerUnit: number;
   repairPricePerPoint: number;
+  mineralPriceMultipliers?: Record<string, number>;
 }
 
 export interface AsteroidVertex {
@@ -59,13 +60,13 @@ export interface Asteroid {
 export type EscortType =
   | 'FIGHTER'
   | 'GUNSHIP'
+  | 'MINING_BARGE'
   | 'FRIGATE'
+  | 'MISSILE_CRUISER'
   | 'DESTROYER'
+  | 'SHIELD_PROJECTOR'
   | 'BATTLECRUISER'
-  | 'DREADNOUGHT'
-  | 'CARRIER'
-  | 'SOVEREIGN'
-  | 'VOID_WEAVER'
+  | 'REPAIR_TENDER'
   | 'RONIN_WARMASTER';
 
 export type EscortStance = 'ATTACK' | 'DEFEND';
@@ -82,6 +83,8 @@ export interface EscortClassDefinition {
   color: string;
   description: string;
   perks: string;
+  isSpecialty?: boolean;
+  specialtyRole?: string;
 }
 
 export interface EscortShip {
@@ -100,9 +103,11 @@ export interface EscortShip {
   shield: number;
   maxShield: number;
   fireCooldown: number;
+  specialCooldown?: number;
   formationAngle: number;
   formationDist: number;
   targetEnemyId?: string | null;
+  miningTargetId?: string | null;
   stunDuration?: number;
 }
 

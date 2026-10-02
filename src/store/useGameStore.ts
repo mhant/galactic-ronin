@@ -22,7 +22,7 @@ import {
   StoryChapter,
 } from '../types/game';
 import { generateSector, generateClusterCell } from '../data/sectorGenerator';
-import { generateStationMarket } from '../data/economy';
+import { generateStationMarket, getStationMineralPrice } from '../data/economy';
 import { SoundManager } from '../audio/SoundManager';
 import { SHIP_CLASSES, getShipClass, getEscortClass, getMaxEscortsForTier } from '../data/shipClasses';
 import { getMineral, getRandomMineralForSector } from '../data/minerals';
@@ -1267,7 +1267,7 @@ export const useGameStore = create<GameState & GameActions>()(
       },
 
       sellMineral: (mineralId: string, quantity?: number) => {
-        const { player } = get();
+        const { player, market, world } = get();
         const inv = [...player.inventory];
         const idx = inv.findIndex((i) => i.id === mineralId);
         if (idx < 0) return false;
@@ -1275,8 +1275,9 @@ export const useGameStore = create<GameState & GameActions>()(
         const qtyToSell = quantity ? Math.min(item.quantity, quantity) : item.quantity;
         if (qtyToSell <= 0) return false;
 
-        const mineral = getMineral(mineralId);
-        const payout = qtyToSell * mineral.unitValue;
+        const activeStation = world.stations.find((s) => s.id === market.activeStationId);
+        const priceInfo = getStationMineralPrice(activeStation, mineralId);
+        const payout = qtyToSell * priceInfo.unitPrice;
 
         if (item.quantity <= qtyToSell) {
           inv.splice(idx, 1);
@@ -1297,13 +1298,14 @@ export const useGameStore = create<GameState & GameActions>()(
       },
 
       sellAllMinerals: () => {
-        const { player } = get();
+        const { player, market, world } = get();
         if (player.inventory.length === 0) return 0;
 
+        const activeStation = world.stations.find((s) => s.id === market.activeStationId);
         let totalEarnings = 0;
         player.inventory.forEach((item) => {
-          const mineral = getMineral(item.id);
-          totalEarnings += mineral.unitValue * item.quantity;
+          const priceInfo = getStationMineralPrice(activeStation, item.id);
+          totalEarnings += priceInfo.unitPrice * item.quantity;
         });
 
         if (totalEarnings > 0) {
