@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { useGameStore, calculatePlayerPower } from '../../store/useGameStore';
+import { useGameStore } from '../../store/useGameStore';
 import { Compass } from 'lucide-react';
 
 export const RadarMinimap: React.FC = () => {
@@ -70,9 +70,8 @@ export const RadarMinimap: React.FC = () => {
       ctx.fill();
       ctx.restore();
 
-      const { ship, world, player } = useGameStore.getState();
-      if (!ship || !world || !player) return;
-      const playerPower = calculatePlayerPower(player, ship);
+      const { ship, world } = useGameStore.getState();
+      if (!ship || !world) return;
 
       // 1. Draw Asteroids (Fast AABB pre-cull + dot rendering)
       for (const ast of (world.asteroids || [])) {
@@ -193,20 +192,19 @@ export const RadarMinimap: React.FC = () => {
         }
       }
 
-      // 5. Draw Enemies (Orange if <= player power, Red if > player power)
+      // 5. Draw Enemies (Orange for -30% to -5%, Red for -5% to +5%, Purple for >+5%)
       for (const enemy of (world.enemies || [])) {
         const dx = (enemy.x - ship.x) * scale;
         const dy = (enemy.y - ship.y) * scale;
         if (Math.hypot(dx, dy) < center - 6) {
-          const ePower = enemy.power || (enemy.maxHull * 2.5);
-          const isStronger = ePower > playerPower;
-          const dotColor = isStronger ? '#EF4444' : '#FB923C';
+          const dotColor = enemy.threatColor || (enemy.threatLevel === 'STRONGER' ? '#A855F7' : enemy.threatLevel === 'WEAKER' ? '#F97316' : '#EF4444');
+          const isStronger = enemy.threatLevel === 'STRONGER';
           const baseRadius = (enemy.scale || 1.0) * 1.8;
           const dotRadius = isStronger ? Math.max(3.8, baseRadius + 1.0) : Math.max(2.4, baseRadius);
 
           ctx.save();
           if (isStronger) {
-            ctx.shadowColor = '#EF4444';
+            ctx.shadowColor = '#A855F7';
             ctx.shadowBlur = 6;
           }
           ctx.fillStyle = dotColor;

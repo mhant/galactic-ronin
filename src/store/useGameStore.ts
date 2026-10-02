@@ -268,14 +268,32 @@ export function createScaledEnemy(
 
   // Scale between -30% (0.70x) to +15% (1.15x) of player power
   const factor = 0.70 + Math.random() * 0.45;
+  const powerDelta = Number((factor - 1.0).toFixed(2)); // -0.30 to +0.15
   const power = Math.round(playerPower * factor);
+
+  // Threat classification & range colors:
+  // Orange: -30% to -5% (weaker)
+  // Red: -5% to +5% (even/matched)
+  // Electric Violet / Purple: +5% to +15% (apex / stronger)
+  let threatLevel: 'WEAKER' | 'EVEN' | 'STRONGER' = 'EVEN';
+  let threatColor = '#EF4444';
+  if (factor < 0.95) {
+    threatLevel = 'WEAKER';
+    threatColor = '#F97316'; // Vibrant Orange
+  } else if (factor > 1.05) {
+    threatLevel = 'STRONGER';
+    threatColor = '#A855F7'; // Electric Ultraviolet / Purple
+  } else {
+    threatLevel = 'EVEN';
+    threatColor = '#EF4444'; // Red
+  }
 
   // 1. Determine Enemy Tier & Naval Category (scales with player's ship class up to tier 100)
   const enemyTier = Math.max(1, Math.min(100, Math.round(playerTier * factor)));
 
   let category: Enemy['category'] = 'SCOUT';
   let title = 'Outlaw Interceptor';
-  let enemyScale = 1.0;
+  let baseScale = 1.0;
   let armorRating = 0; // % of direct laser fire absorbed
 
   if (enemyTier >= 22) {
@@ -289,91 +307,85 @@ export function createScaledEnemy(
       'Archon Star-Eater Flagship',
     ];
     title = grandTitles[(enemyTier + Math.floor(factor * 10)) % grandTitles.length];
-    enemyScale = Number((3.30 + (enemyTier - 22) * 0.045 + (factor - 0.7) * 0.5).toFixed(2));
-    armorRating = Math.min(0.65, 0.50 + (enemyTier - 22) * 0.003);
+    baseScale = 3.0 + (enemyTier - 22) * 0.035;
+    armorRating = 0.15;
   } else if (enemyTier >= 20) {
     category = 'COLOSSUS';
-    title = factor > 1.08 ? 'Astral Leviathan Titan' : 'Ouroboros Apex Flagship';
-    enemyScale = Number((3.30 + (factor - 0.7) * 0.5).toFixed(2));
-    armorRating = 0.50;
+    title = factor > 1.05 ? 'Astral Leviathan Titan' : 'Ouroboros Apex Flagship';
+    baseScale = 2.8;
+    armorRating = 0.14;
   } else if (enemyTier >= 17) {
     category = 'CARRIER';
-    title = factor > 1.08 ? 'Archon Supercarrier' : 'Hyperion Fleet Carrier';
-    enemyScale = Number((2.85 + (factor - 0.7) * 0.45).toFixed(2));
-    armorRating = 0.45;
+    title = factor > 1.05 ? 'Archon Supercarrier' : 'Hyperion Fleet Carrier';
+    baseScale = 2.5;
+    armorRating = 0.12;
   } else if (enemyTier >= 15) {
     category = 'COLOSSUS';
-    title = factor > 1.08 ? 'Solar Apex Colossus' : 'Eclipse Flagship';
-    enemyScale = Number((2.55 + (factor - 0.7) * 0.4).toFixed(2));
-    armorRating = 0.40;
+    title = factor > 1.05 ? 'Solar Apex Colossus' : 'Eclipse Flagship';
+    baseScale = 2.3;
+    armorRating = 0.12;
   } else if (enemyTier >= 13) {
     category = 'BATTLESHIP';
-    title = factor > 1.08 ? 'Behemoth Battleship' : 'Void Dreadnought';
-    enemyScale = Number((2.35 + (factor - 0.7) * 0.4).toFixed(2));
-    armorRating = 0.35;
+    title = factor > 1.05 ? 'Behemoth Battleship' : 'Void Dreadnought';
+    baseScale = 2.0;
+    armorRating = 0.10;
   } else if (enemyTier >= 9) {
     category = 'CRUISER';
-    title = factor > 1.08 ? 'Warlord Battlecruiser' : 'Heavy Assault Cruiser';
-    enemyScale = Number((1.95 + (factor - 0.7) * 0.35).toFixed(2));
-    armorRating = 0.25;
+    title = factor > 1.05 ? 'Warlord Battlecruiser' : 'Heavy Assault Cruiser';
+    baseScale = 1.7;
+    armorRating = 0.08;
   } else if (enemyTier >= 6) {
     category = 'FRIGATE';
     title = factor > 1.05 ? 'Valkyrie Warship' : 'Reaper Heavy Frigate';
-    enemyScale = Number((1.55 + (factor - 0.7) * 0.3).toFixed(2));
-    armorRating = 0.18;
+    baseScale = 1.4;
+    armorRating = 0.05;
   } else if (enemyTier >= 4) {
     category = 'CORVETTE';
     title = factor > 1.05 ? 'Hammerhead Raider' : 'Marauder Gunship';
-    enemyScale = Number((1.25 + (factor - 0.7) * 0.25).toFixed(2));
-    armorRating = 0.10;
+    baseScale = 1.15;
+    armorRating = 0;
   } else {
     category = 'SCOUT';
-    title = factor > 1.0 ? 'Vanguard Interceptor' : 'Outlaw Skiff';
-    enemyScale = Number((0.95 + (factor - 0.7) * 0.2).toFixed(2));
-    armorRating = 0.05;
+    title = factor > 1.05 ? 'Vanguard Interceptor' : 'Outlaw Skiff';
+    baseScale = 0.95;
+    armorRating = 0;
   }
 
-  // 2. Formidable HP & Shield Scaling
-  // Benchmark player laser volley damage
+  // Ship size scales with the -30% to +15% power/size variation factor
+  const enemyScale = Number((baseScale * factor).toFixed(2));
+
+  // 2. Streamlined HP & Shield Scaling
+  // Player can easily overpower a single matched enemy with focused continuous laser volleys
   const volleyMultiplier = weaponLevel >= 5 ? 1.79 : weaponLevel >= 4 ? 1.4 : weaponLevel >= 3 ? 1.35 : weaponLevel >= 2 ? 1.2 : 1.0;
   const expectedVolleyDmg = (45 + weaponPower * 12) * (1 + (weaponLevel - 1) * 0.25) * volleyMultiplier;
 
-  // Number of sustained full laser volleys needed to destroy the enemy based on naval class:
-  let classVolleys = 4.0;
-  if (category === 'COLOSSUS') classVolleys = 22.0 + ((factor - 0.70) / 0.45) * 14.0;
-  else if (category === 'CARRIER') classVolleys = 18.0 + ((factor - 0.70) / 0.45) * 11.0;
-  else if (category === 'BATTLESHIP') classVolleys = 13.0 + ((factor - 0.70) / 0.45) * 8.0;
-  else if (category === 'CRUISER') classVolleys = 8.0 + ((factor - 0.70) / 0.45) * 5.0;
-  else if (category === 'FRIGATE') classVolleys = 6.0 + ((factor - 0.70) / 0.45) * 3.5;
-  else if (category === 'CORVETTE') classVolleys = 4.5 + ((factor - 0.70) / 0.45) * 2.5;
-  else classVolleys = 3.2 + ((factor - 0.70) / 0.45) * 2.0;
+  // Number of volleys needed: Orange (1.8-2.6), Red (2.6-3.4), Purple (3.4-4.8)
+  let volleysNeeded = 3.0;
+  if (threatLevel === 'WEAKER') {
+    volleysNeeded = 1.8 + ((factor - 0.70) / 0.25) * 0.8;
+  } else if (threatLevel === 'STRONGER') {
+    volleysNeeded = 3.4 + ((factor - 1.05) / 0.10) * 1.4;
+  } else {
+    volleysNeeded = 2.6 + ((factor - 0.95) / 0.10) * 0.8;
+  }
 
-  const totalEffectiveHP = Math.round(expectedVolleyDmg * classVolleys);
+  const totalEffectiveHP = Math.max(30, Math.round(expectedVolleyDmg * volleysNeeded));
 
   // Divide between Hull and Deflector Shields based on category
   let maxShield = 0;
   let maxHull = totalEffectiveHP;
 
-  if (category === 'COLOSSUS') {
-    maxShield = Math.round(totalEffectiveHP * 0.50);
+  if (category === 'COLOSSUS' || category === 'CARRIER' || category === 'BATTLESHIP') {
+    maxShield = Math.round(totalEffectiveHP * 0.35);
     maxHull = totalEffectiveHP - maxShield;
-  } else if (category === 'CARRIER') {
-    maxShield = Math.round(totalEffectiveHP * 0.48);
-    maxHull = totalEffectiveHP - maxShield;
-  } else if (category === 'BATTLESHIP') {
-    maxShield = Math.round(totalEffectiveHP * 0.45);
-    maxHull = totalEffectiveHP - maxShield;
-  } else if (category === 'CRUISER') {
-    maxShield = Math.round(totalEffectiveHP * 0.38);
-    maxHull = totalEffectiveHP - maxShield;
-  } else if (category === 'FRIGATE') {
-    maxShield = Math.round(totalEffectiveHP * 0.30);
+  } else if (category === 'CRUISER' || category === 'FRIGATE') {
+    maxShield = Math.round(totalEffectiveHP * 0.25);
     maxHull = totalEffectiveHP - maxShield;
   } else if (category === 'CORVETTE') {
-    maxShield = Math.round(totalEffectiveHP * 0.22);
+    maxShield = Math.round(totalEffectiveHP * 0.15);
     maxHull = totalEffectiveHP - maxShield;
   } else {
-    maxShield = factor > 0.90 ? Math.round(totalEffectiveHP * 0.20) : 0;
+    maxShield = threatLevel === 'STRONGER' ? Math.round(totalEffectiveHP * 0.15) : 0;
     maxHull = totalEffectiveHP - maxShield;
   }
 
@@ -384,41 +396,7 @@ export function createScaledEnemy(
     type = 'RAIDER_CORVETTE';
   }
 
-  const hasBeam = enemyTier >= 9 || category === 'COLOSSUS' || category === 'CARRIER' || category === 'BATTLESHIP' || category === 'CRUISER';
-
-  let escortCount = 0;
-  if (category === 'COLOSSUS') escortCount = 5;
-  else if (category === 'CARRIER') escortCount = 4;
-  else if (category === 'BATTLESHIP') escortCount = 3;
-  else if (category === 'CRUISER') escortCount = 2;
-  else if (category === 'FRIGATE') escortCount = 1;
-
-  const enemyEscorts: EscortShip[] = [];
-  for (let i = 0; i < escortCount; i++) {
-    const isGunship = (category === 'COLOSSUS' || category === 'CARRIER' || category === 'BATTLESHIP') && i % 2 === 1;
-    const formAng = (i / escortCount) * Math.PI * 2;
-    const formDist = 55 + enemyScale * 25;
-    enemyEscorts.push({
-      id: `escort_enemy_${id}_${i}`,
-      name: isGunship ? 'Outlaw Heavy Gunship' : 'Outlaw Raider Escort',
-      type: isGunship ? 'GUNSHIP' : 'FIGHTER',
-      owner: 'ENEMY',
-      leaderId: id,
-      x: baseX + Math.cos(formAng) * formDist,
-      y: baseY + Math.sin(formAng) * formDist,
-      vx: 0,
-      vy: 0,
-      rotation: Math.random() * Math.PI * 2,
-      hull: isGunship ? 180 : 100,
-      maxHull: isGunship ? 180 : 100,
-      shield: isGunship ? 100 : 50,
-      maxShield: isGunship ? 100 : 50,
-      fireCooldown: 0.5 + Math.random() * 1.5,
-      formationAngle: formAng,
-      formationDist: formDist,
-      targetEnemyId: null,
-    });
-  }
+  const hasBeam = enemyTier >= 18 && (category === 'COLOSSUS' || category === 'CARRIER');
 
   return {
     id,
@@ -436,14 +414,17 @@ export function createScaledEnemy(
     maxHull,
     shield: maxShield,
     maxShield,
-    bounty: Math.round(250 + power * 3.8 + enemyTier * 120),
-    fireCooldown: Math.random() * 1.5,
-    aggroDistance: Math.round(520 + enemyScale * 140),
+    bounty: Math.round(200 + power * 2.5 + enemyTier * 90),
+    fireCooldown: 0.8 + Math.random() * 1.5,
+    aggroDistance: Math.round(480 + enemyScale * 90),
     power,
     scale: enemyScale,
     hasBeamWeapon: hasBeam,
     beamTargetId: null,
-    escorts: enemyEscorts,
+    escorts: [], // Enemies no longer have escorts
+    powerDelta,
+    threatLevel,
+    threatColor,
   };
 }
 
@@ -2234,50 +2215,6 @@ export const useGameStore = create<GameState & GameActions>()(
           // Spawn multi-pod salvage drops scaled to enemy tier & category
           const salvageDrops = generateEnemySalvage(enemy);
 
-          // Exploding capital ship shockwave blast damages attached and nearby enemy escorts!
-          const blastRadius = 240;
-          const attachedEscortDrops: FloatingLoot[] = [];
-          const remainingWorldEscorts: EscortShip[] = [];
-
-          for (const esc of world.escorts || []) {
-            if (
-              esc.owner === 'ENEMY' &&
-              (esc.leaderId === enemyId || Math.hypot(esc.x - enemy.x, esc.y - enemy.y) < blastRadius)
-            ) {
-              const blastDamage = 95; // Heavy shockwave blast
-              let escHull = esc.hull;
-              let escShield = esc.shield;
-              let remDmg = blastDamage;
-              if (escShield > 0) {
-                if (escShield >= remDmg) {
-                  escShield -= remDmg;
-                  remDmg = 0;
-                } else {
-                  remDmg -= escShield;
-                  escShield = 0;
-                }
-              }
-              if (remDmg > 0) {
-                escHull = Math.max(0, escHull - remDmg);
-              }
-
-              if (escHull <= 0) {
-                // Escort obliterated in capital explosion
-                attachedEscortDrops.push(...generateEscortSalvage(esc));
-              } else {
-                // Survived blast with remaining HP: severed leader link, becomes hostile rogue escort
-                remainingWorldEscorts.push({
-                  ...esc,
-                  hull: escHull,
-                  shield: escShield,
-                  leaderId: undefined,
-                });
-              }
-            } else {
-              remainingWorldEscorts.push(esc);
-            }
-          }
-
           set((s) => ({
             player: {
               ...s.player,
@@ -2286,8 +2223,7 @@ export const useGameStore = create<GameState & GameActions>()(
             world: {
               ...s.world,
               enemies: s.world.enemies.filter((e) => e.id !== enemyId),
-              escorts: remainingWorldEscorts,
-              floatingLoot: [...s.world.floatingLoot, ...salvageDrops, ...attachedEscortDrops],
+              floatingLoot: [...s.world.floatingLoot, ...salvageDrops],
             },
           }));
 
@@ -2403,43 +2339,53 @@ export const useGameStore = create<GameState & GameActions>()(
           (e) => Math.hypot(e.x - ship.x, e.y - ship.y) < 3500
         );
 
-        if (activeEnemies.length >= 6) {
+        if (activeEnemies.length >= 7) {
           if (activeEnemies.length !== world.enemies.length) {
             set((state) => ({ world: { ...state.world, enemies: activeEnemies } }));
           }
           return;
         }
 
+        // Wave size distribution:
+        // 45% chance: 1 enemy
+        // 35% chance: 2 or 3 enemies
+        // 20% chance: 4 or 5 enemies
+        const waveRoll = Math.random();
+        let targetWaveCount = 1;
+        if (waveRoll < 0.45) {
+          targetWaveCount = 1;
+        } else if (waveRoll < 0.80) {
+          targetWaveCount = Math.random() < 0.5 ? 2 : 3;
+        } else {
+          targetWaveCount = Math.random() < 0.5 ? 4 : 5;
+        }
+
+        const count = Math.min(targetWaveCount, 8 - activeEnemies.length);
         const newEnemies: Enemy[] = [];
-        const count = Math.min(2, 6 - activeEnemies.length);
+        const baseAngle = Math.random() * Math.PI * 2;
+        const spawnDist = 1000 + Math.random() * 350;
+
         for (let i = 0; i < count; i++) {
-          const spawnAngle = Math.random() * Math.PI * 2;
-          const spawnDist = 1100 + Math.random() * 400;
-          const ex = ship.x + Math.cos(spawnAngle) * spawnDist;
-          const ey = ship.y + Math.sin(spawnAngle) * spawnDist;
+          const spreadAngle = baseAngle + (i - (count - 1) / 2) * 0.35 + (Math.random() - 0.5) * 0.2;
+          const ex = ship.x + Math.cos(spreadAngle) * (spawnDist + (i % 2) * 80);
+          const ey = ship.y + Math.sin(spreadAngle) * (spawnDist + (i % 2) * 80);
           newEnemies.push(createScaledEnemy(`enemy_wave_${Date.now()}_${i}`, ex, ey, player, ship));
         }
 
         logger.log('STATE', `Reinforcement Wave Spawned (+${newEnemies.length} hostiles)`, {
           totalEnemies: activeEnemies.length + newEnemies.length,
-          spawned: newEnemies.map((e) => `${e.category || e.type} (${Math.round(e.x)}, ${Math.round(e.y)})`),
+          spawned: newEnemies.map((e) => `${e.category || e.type} [${e.threatLevel}] (${Math.round(e.x)}, ${Math.round(e.y)})`),
         });
 
-        const newEscorts: EscortShip[] = [];
-        newEnemies.forEach((e) => {
-          if (e.escorts && e.escorts.length > 0) {
-            newEscorts.push(...e.escorts);
-          }
-        });
-
+        // Ensure only player escorts are retained
+        const playerEscortsOnly = (world.escorts || []).filter((e) => e.owner === 'PLAYER');
         const combinedEnemies = [...activeEnemies, ...newEnemies].slice(0, 8);
-        const combinedEscorts = [...(world.escorts || []), ...newEscorts].slice(0, 10);
 
         set((state) => ({
           world: {
             ...state.world,
             enemies: combinedEnemies,
-            escorts: combinedEscorts,
+            escorts: playerEscortsOnly,
           },
         }));
       },

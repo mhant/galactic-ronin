@@ -1,5 +1,5 @@
 import { Asteroid, Enemy, Particle, Projectile, ReconDrone, Station, EscortShip } from '../types/game';
-import { useGameStore, calculatePlayerPower } from '../store/useGameStore';
+import { useGameStore } from '../store/useGameStore';
 import { SoundManager } from '../audio/SoundManager';
 import { logger } from './diagnosticLogger';
 
@@ -1576,7 +1576,6 @@ export class GameEngine {
         const isCruiser = enemyCat === 'CRUISER';
         const isFrigate = enemyCat === 'FRIGATE';
         const isCorvette = enemyCat === 'CORVETTE';
-        const isScout = enemyCat === 'SCOUT';
 
         const minPlayerDist = playerHitRadius + Math.max(55, 38 * (enemy.scale || 1.0)) + 60;
         const preferredDist = Math.max(minPlayerDist + 80, isCapital ? 540 : isCruiser ? 440 : isFrigate ? 370 : isCorvette ? 310 : 260);
@@ -1640,68 +1639,73 @@ export class GameEngine {
           evy = (evy / curEnemySpeed) * maxAllowedSpeed;
         }
 
-        // 5. Predictive Aim & Fire Weapon (Leads the moving player!)
-        const maxFireRange = isCapital ? 620 : isCruiser ? 520 : 440;
-        const laserSpeed = isCapital ? 680 : isCruiser ? 620 : 560;
+        // 5. Predictive Aim & Fire Weapon (Balanced combat: easy in 1v1, challenging in swarms)
+        const maxFireRange = isCapital ? 560 : isCruiser ? 480 : 420;
+        const laserSpeed = isCapital ? 560 : isCruiser ? 520 : 480;
 
-        // Predictive target intercept calculation
-        const leadTime = Math.min(0.9, distToPlayer / laserSpeed);
-        const predTargetX = newX + vx * leadTime * 0.85;
-        const predTargetY = newY + vy * leadTime * 0.85;
+        // Predictive target intercept calculation with slight natural aim variance
+        const leadTime = Math.min(0.8, distToPlayer / laserSpeed);
+        const predTargetX = newX + vx * leadTime * 0.75;
+        const predTargetY = newY + vy * leadTime * 0.75;
         const fireAngle = Math.atan2(predTargetY - enemy.y, predTargetX - enemy.x);
         const aimDiff = Math.abs(Math.atan2(Math.sin(fireAngle - enemyRot), Math.cos(fireAngle - enemyRot)));
-        const isFacingPlayer = aimDiff < 0.42;
+        const isFacingPlayer = aimDiff < 0.48;
 
         if (distToPlayer < maxFireRange && isFacingPlayer && fireCooldown <= 0) {
-          fireCooldown = isCapital ? 1.4 : isCruiser ? 1.6 : isScout ? 1.4 : 1.8;
-          // Substantial bolt damage that poses a real threat!
-          const boltDamage = Math.round((isCapital ? 44 : isCruiser ? 32 : isFrigate ? 26 : 20) * Math.min(2.0, enemy.scale || 1.0));
-          const perp = fireAngle + Math.PI / 2;
+          fireCooldown = isCapital ? 2.2 : isCruiser ? 2.0 : isFrigate ? 1.9 : 1.7;
+
+          // Damage calibrated so 1v1 is easily won by player; swarm of 3-5 provides tactical danger
+          const threatMult = enemy.threatLevel === 'STRONGER' ? 1.15 : enemy.threatLevel === 'WEAKER' ? 0.85 : 1.0;
+          const boltDamage = Math.round((isCapital ? 8 : isCruiser ? 9 : isFrigate ? 8 : 7) * threatMult);
+          const laserColor = enemy.threatColor || (enemy.threatLevel === 'STRONGER' ? '#A855F7' : enemy.threatLevel === 'WEAKER' ? '#F97316' : '#FF3366');
+          const spread = (Math.random() - 0.5) * 0.08;
+          const shotAngle = fireAngle + spread;
+          const perp = shotAngle + Math.PI / 2;
 
           if (isCapital) {
             // Quad heavy plasma battery salvo
-            [-18, -7, 7, 18].forEach((off) => {
+            [-16, -6, 6, 16].forEach((off) => {
               state.addProjectile({
                 id: `p_enemy_${Date.now()}_${Math.random()}`,
                 owner: 'ENEMY',
-                x: enemy.x + Math.cos(fireAngle) * 26 + Math.cos(perp) * off,
-                y: enemy.y + Math.sin(fireAngle) * 26 + Math.sin(perp) * off,
-                vx: Math.cos(fireAngle) * laserSpeed,
-                vy: Math.sin(fireAngle) * laserSpeed,
-                damage: Math.round(boltDamage * 0.7),
+                x: enemy.x + Math.cos(shotAngle) * 26 + Math.cos(perp) * off,
+                y: enemy.y + Math.sin(shotAngle) * 26 + Math.sin(perp) * off,
+                vx: Math.cos(shotAngle) * laserSpeed,
+                vy: Math.sin(shotAngle) * laserSpeed,
+                damage: boltDamage,
                 lifetime: 1.8,
-                color: '#FF3366',
+                color: laserColor,
               });
             });
 
-            // Occasional secondary torpedo launch from capital battleships
-            if (Math.random() < 0.25 && distToPlayer < 600) {
+            // Occasional secondary torpedo launch only from apex capital battleships
+            if (enemy.threatLevel === 'STRONGER' && Math.random() < 0.20 && distToPlayer < 550) {
               state.addProjectile({
                 id: `p_enemy_torp_${Date.now()}_${Math.random()}`,
                 owner: 'ENEMY',
                 type: 'TORPEDO',
-                x: enemy.x + Math.cos(fireAngle) * 28,
-                y: enemy.y + Math.sin(fireAngle) * 28,
-                vx: Math.cos(fireAngle) * 350,
-                vy: Math.sin(fireAngle) * 350,
-                damage: 65,
+                x: enemy.x + Math.cos(shotAngle) * 28,
+                y: enemy.y + Math.sin(shotAngle) * 28,
+                vx: Math.cos(shotAngle) * 320,
+                vy: Math.sin(shotAngle) * 320,
+                damage: 32,
                 lifetime: 3.0,
-                color: '#EF4444',
+                color: '#A855F7',
               });
             }
           } else if (isCruiser || isFrigate) {
             // Twin plasma cannons
-            [-13, 13].forEach((off) => {
+            [-12, 12].forEach((off) => {
               state.addProjectile({
                 id: `p_enemy_${Date.now()}_${Math.random()}`,
                 owner: 'ENEMY',
-                x: enemy.x + Math.cos(fireAngle) * 22 + Math.cos(perp) * off,
-                y: enemy.y + Math.sin(fireAngle) * 22 + Math.sin(perp) * off,
-                vx: Math.cos(fireAngle) * laserSpeed,
-                vy: Math.sin(fireAngle) * laserSpeed,
-                damage: Math.round(boltDamage * 0.85),
+                x: enemy.x + Math.cos(shotAngle) * 22 + Math.cos(perp) * off,
+                y: enemy.y + Math.sin(shotAngle) * 22 + Math.sin(perp) * off,
+                vx: Math.cos(shotAngle) * laserSpeed,
+                vy: Math.sin(shotAngle) * laserSpeed,
+                damage: boltDamage,
                 lifetime: 1.6,
-                color: '#FF3366',
+                color: laserColor,
               });
             });
           } else {
@@ -1709,13 +1713,13 @@ export class GameEngine {
             state.addProjectile({
               id: `p_enemy_${Date.now()}_${Math.random()}`,
               owner: 'ENEMY',
-              x: enemy.x + Math.cos(fireAngle) * 18,
-              y: enemy.y + Math.sin(fireAngle) * 18,
-              vx: Math.cos(fireAngle) * laserSpeed,
-              vy: Math.sin(fireAngle) * laserSpeed,
-              damage: boltDamage,
+              x: enemy.x + Math.cos(shotAngle) * 18,
+              y: enemy.y + Math.sin(shotAngle) * 18,
+              vx: Math.cos(shotAngle) * laserSpeed,
+              vy: Math.sin(shotAngle) * laserSpeed,
+              damage: Math.round(boltDamage * 1.2),
               lifetime: 1.5,
-              color: '#FF3366',
+              color: laserColor,
             });
           }
           SoundManager.playLaser(true);
@@ -2059,19 +2063,19 @@ export class GameEngine {
     for (const en of liveEnemiesForBeam) {
       if (en.hasBeamWeapon && (!en.stunDuration || en.stunDuration <= 0)) {
         const d = Math.hypot(newX - en.x, newY - en.y);
-        if (d < 500) {
+        if (d < 450) {
           anyEnemyBeamFiring = true;
           this.enemyBeamActive.add(en.id);
-          this.enemyBeamDamageAccumulator += 40 * dt;
+          this.enemyBeamDamageAccumulator += 10 * dt;
 
-          if (Math.random() < 0.5) {
+          if (Math.random() < 0.3) {
             const sparkAngle = Math.random() * Math.PI * 2;
             this.particles.push({
               x: newX + (Math.random() - 0.5) * 18,
               y: newY + (Math.random() - 0.5) * 18,
               vx: Math.cos(sparkAngle) * 70,
               vy: Math.sin(sparkAngle) * 70,
-              color: '#EF4444',
+              color: en.threatColor || '#A855F7',
               size: 2,
               alpha: 0.9,
               lifetime: 0.22,
@@ -3764,15 +3768,11 @@ export class GameEngine {
     const minY = playerY - vh / 2 - 250;
     const maxY = playerY + vh / 2 + 250;
 
-    const { player, ship } = useGameStore.getState();
-    const playerPower = calculatePlayerPower(player, ship);
-
     for (const enemy of enemies) {
       if (enemy.x < minX || enemy.x > maxX || enemy.y < minY || enemy.y > maxY) continue;
 
-      const ePower = enemy.power || (enemy.maxHull * 2.5);
-      const isStronger = ePower > playerPower;
-      const threatColor = isStronger ? '#EF4444' : '#FB923C';
+      const threatColor = enemy.threatColor || (enemy.threatLevel === 'STRONGER' ? '#A855F7' : enemy.threatLevel === 'WEAKER' ? '#F97316' : '#EF4444');
+      const threatLevel = enemy.threatLevel || (threatColor === '#A855F7' ? 'STRONGER' : threatColor === '#F97316' ? 'WEAKER' : 'EVEN');
       const enemyScale = enemy.scale || 1.0;
       const category = enemy.category || (enemy.type === 'OUTLAW_BOSS' ? 'BATTLESHIP' : enemy.type === 'RAIDER_CORVETTE' ? 'CRUISER' : 'SCOUT');
 
@@ -3782,9 +3782,9 @@ export class GameEngine {
       ctx.scale(enemyScale, enemyScale);
 
       // Raider Ship Hull
-      ctx.fillStyle = isStronger ? '#250810' : '#1e1b4b';
+      ctx.fillStyle = threatLevel === 'STRONGER' ? '#2e1065' : threatLevel === 'EVEN' ? '#250810' : '#2c1404';
       ctx.strokeStyle = threatColor;
-      ctx.lineWidth = isStronger ? 2.5 : 2;
+      ctx.lineWidth = threatLevel === 'STRONGER' ? 2.5 : 2;
 
       ctx.beginPath();
       switch (category) {
@@ -3901,12 +3901,14 @@ export class GameEngine {
       ctx.fill();
       ctx.stroke();
 
+      const glowAccent = threatLevel === 'STRONGER' ? '#C084FC' : threatLevel === 'EVEN' ? '#FF3366' : '#FB923C';
+
       // Category-specific internal armor lines & bridge canopies
       if (category === 'COLOSSUS' || category === 'CARRIER' || category === 'BATTLESHIP') {
         // Flight deck runway markings for Carrier / Colossus
         if (category === 'CARRIER' || category === 'COLOSSUS') {
           ctx.save();
-          ctx.strokeStyle = isStronger ? 'rgba(239, 68, 68, 0.7)' : 'rgba(251, 146, 60, 0.7)';
+          ctx.strokeStyle = threatColor;
           ctx.lineWidth = 1.2;
           ctx.setLineDash([4, 4]);
           ctx.beginPath();
@@ -3934,12 +3936,12 @@ export class GameEngine {
         ctx.strokeRect(-12, -7, 16, 14);
         ctx.fillRect(-12, -7, 16, 14);
         // Bridge glow
-        ctx.fillStyle = isStronger ? '#FF3366' : '#FB923C';
+        ctx.fillStyle = glowAccent;
         ctx.beginPath();
         ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
         ctx.fill();
-        // Quad / Hex thrusters
-        ctx.fillStyle = isStronger ? '#FF3366' : '#FB923C';
+        // Quad thrusters
+        ctx.fillStyle = glowAccent;
         ctx.fillRect(-34, -14, 6, 2.5);
         ctx.fillRect(-34, -6, 6, 2.5);
         ctx.fillRect(-34, 3.5, 6, 2.5);
@@ -3950,7 +3952,7 @@ export class GameEngine {
         ctx.fillRect(26, -14, 4, 2);
         ctx.fillRect(26, 12, 4, 2);
         // Triple thruster nozzles
-        ctx.fillStyle = isStronger ? '#FF3366' : '#FB923C';
+        ctx.fillStyle = glowAccent;
         ctx.fillRect(-24, -10, 5, 2.5);
         ctx.fillRect(-26, -1.5, 6, 3);
         ctx.fillRect(-24, 7.5, 5, 2.5);
@@ -3960,7 +3962,7 @@ export class GameEngine {
         ctx.fill();
       } else if (category === 'FRIGATE') {
         // Dual engine exhausts
-        ctx.fillStyle = isStronger ? '#FF3366' : '#FB923C';
+        ctx.fillStyle = glowAccent;
         ctx.fillRect(-18, -13, 5, 2.5);
         ctx.fillRect(-18, 10.5, 5, 2.5);
         // Cockpit
@@ -3969,7 +3971,7 @@ export class GameEngine {
         ctx.fill();
       } else if (category === 'CORVETTE') {
         // Dual engine exhausts
-        ctx.fillStyle = isStronger ? '#FF3366' : '#FB923C';
+        ctx.fillStyle = glowAccent;
         ctx.fillRect(-16, -9, 4, 2);
         ctx.fillRect(-16, 7, 4, 2);
         // Cockpit
@@ -3978,7 +3980,7 @@ export class GameEngine {
         ctx.fill();
       } else {
         // Single Scout engine glow
-        ctx.fillStyle = isStronger ? '#FF3366' : '#FB923C';
+        ctx.fillStyle = glowAccent;
         ctx.beginPath();
         ctx.arc(-12, 0, 3, 0, Math.PI * 2);
         ctx.fill();
@@ -3993,8 +3995,8 @@ export class GameEngine {
         const eBox = getEnemyBoundingBox(category, 1.0);
         const sL = eBox.halfLength + 6;
         const sW = eBox.halfWidth + 6;
-        ctx.strokeStyle = isStronger ? 'rgba(239, 68, 68, 0.65)' : 'rgba(251, 146, 60, 0.65)';
-        ctx.lineWidth = isStronger ? 2.2 : 1.8;
+        ctx.strokeStyle = threatLevel === 'STRONGER' ? 'rgba(168, 85, 247, 0.75)' : threatLevel === 'EVEN' ? 'rgba(239, 68, 68, 0.65)' : 'rgba(249, 115, 22, 0.65)';
+        ctx.lineWidth = threatLevel === 'STRONGER' ? 2.2 : 1.8;
         ctx.beginPath();
         if (typeof ctx.roundRect === 'function') {
           ctx.roundRect(-sL + eBox.forwardOffset, -sW, sL * 2, sW * 2, 10);
@@ -4042,11 +4044,21 @@ export class GameEngine {
       ctx.fillStyle = enemy.stunDuration && enemy.stunDuration > 0 ? '#00F0FF' : threatColor;
       ctx.font = 'bold 10px monospace';
       ctx.textAlign = 'center';
+
+      let threatBadge = `[MATCH]`;
+      if (threatLevel === 'WEAKER') {
+        const pct = Math.abs(Math.round((enemy.powerDelta || -0.15) * 100));
+        threatBadge = `▼ [WEAK -${pct}%]`;
+      } else if (threatLevel === 'STRONGER') {
+        const pct = Math.round((enemy.powerDelta || 0.10) * 100);
+        threatBadge = `▲ [APEX +${pct}%]`;
+      } else {
+        threatBadge = `■ [MATCH ±5%]`;
+      }
+
       const threatLabel = enemy.stunDuration && enemy.stunDuration > 0
         ? `⚡ [${category}] ${enemy.name} [EMP STUNNED ${enemy.stunDuration.toFixed(1)}s]`
-        : isStronger
-          ? `▲ [${category}] ${enemy.name} [STRONGER]`
-          : `▼ [${category}] ${enemy.name} [MATCHED]`;
+        : `${threatBadge} [${category}] ${enemy.name}`;
       ctx.fillText(threatLabel, enemy.x, barY - 7);
     }
   }

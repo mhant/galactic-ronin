@@ -265,7 +265,16 @@ export function generateClusterCell(
     }
 
     if (player && ship) {
-      const enemyCount = 2 + Math.floor(rand(3) * 2);
+      const roll = rand(3);
+      let enemyCount = 1;
+      if (roll < 0.45) {
+        enemyCount = 1;
+      } else if (roll < 0.80) {
+        enemyCount = rand(4) < 0.5 ? 2 : 3;
+      } else {
+        enemyCount = rand(4) < 0.5 ? 4 : 5;
+      }
+
       for (let e = 0; e < enemyCount; e++) {
         const ea = rand(40 + e) * Math.PI * 2;
         const ed = 200 + rand(50 + e) * 700;

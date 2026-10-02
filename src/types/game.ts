@@ -202,6 +202,9 @@ export interface Enemy {
   hasBeamWeapon?: boolean;
   beamTargetId?: string | null;
   stunDuration?: number;
+  powerDelta?: number;
+  threatLevel?: 'WEAKER' | 'EVEN' | 'STRONGER';
+  threatColor?: string;
 }
 
 export interface ShipClassDefinition {
