@@ -583,7 +583,6 @@ export class GameEngine {
     if (this.isPressed('Space', 'space', ' ')) {
       if (this.playerShootCooldown <= 0) {
         this.playerShootCooldown = fireCooldownRate;
-        const projectileSpeed = 850; // Fast plasma bolt
 
         // Magnetic Aim Assist: lead towards nearby hostile if aiming in their direction
         let fireAngle = rot;
@@ -608,24 +607,29 @@ export class GameEngine {
 
         const perpAngle = fireAngle + Math.PI / 2;
 
+        // Multi-Tier Laser Cannon Configurations (Levels 1 to 50+)
+        // Distinct visual beam colors, varied widths, speeds, and multi-cannon layouts
+        const baseSpeed = 860;
+
         if (weaponLvl === 1) {
-          // Tier 1: Single Pulse Laser (Cyan)
+          // MK-1: Cyan Pulse Needle
           state.addProjectile({
             id: `p_player_${Date.now()}_${Math.random()}`,
             owner: 'PLAYER',
             type: 'LASER',
             x: newX + Math.cos(fireAngle) * 22,
             y: newY + Math.sin(fireAngle) * 22,
-            vx: vx + Math.cos(fireAngle) * projectileSpeed,
-            vy: vy + Math.sin(fireAngle) * projectileSpeed,
+            vx: vx + Math.cos(fireAngle) * baseSpeed,
+            vy: vy + Math.sin(fireAngle) * baseSpeed,
             damage: weaponDamage,
             lifetime: 1.8,
             color: '#00F0FF',
+            radius: 1.8,
           });
         } else if (weaponLvl === 2) {
-          // Tier 2: Twin Azure Cannons from Left & Right Wings
+          // MK-2: Twin Azure Wing Cannons
           const offset = 11;
-          const dmgPerBolt = weaponDamage * 0.6;
+          const dmgPerBolt = weaponDamage * 0.58;
           [-offset, offset].forEach((off) => {
             state.addProjectile({
               id: `p_player_${Date.now()}_${Math.random()}`,
@@ -633,27 +637,29 @@ export class GameEngine {
               type: 'LASER',
               x: newX + Math.cos(fireAngle) * 18 + Math.cos(perpAngle) * off,
               y: newY + Math.sin(fireAngle) * 18 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle) * projectileSpeed,
-              vy: vy + Math.sin(fireAngle) * projectileSpeed,
+              vx: vx + Math.cos(fireAngle) * (baseSpeed + 20),
+              vy: vy + Math.sin(fireAngle) * (baseSpeed + 20),
               damage: dmgPerBolt,
               lifetime: 1.8,
               color: '#38BDF8',
+              radius: 2.2,
             });
           });
         } else if (weaponLvl === 3) {
-          // Tier 3: Triple Violet Hyper-Cannons (Center + Spread Trident)
-          const dmgPerBolt = weaponDamage * 0.45;
+          // MK-3: Triple Violet Hyper-Trident
+          const dmgPerBolt = weaponDamage * 0.44;
           state.addProjectile({
             id: `p_player_${Date.now()}_${Math.random()}`,
             owner: 'PLAYER',
             type: 'LASER',
             x: newX + Math.cos(fireAngle) * 22,
             y: newY + Math.sin(fireAngle) * 22,
-            vx: vx + Math.cos(fireAngle) * projectileSpeed,
-            vy: vy + Math.sin(fireAngle) * projectileSpeed,
-            damage: dmgPerBolt,
+            vx: vx + Math.cos(fireAngle) * (baseSpeed + 30),
+            vy: vy + Math.sin(fireAngle) * (baseSpeed + 30),
+            damage: dmgPerBolt * 1.15,
             lifetime: 1.8,
             color: '#C084FC',
+            radius: 2.5,
           });
           [-14, 14].forEach((off, idx) => {
             const spreadAngle = fireAngle + (idx === 0 ? -0.04 : 0.04);
@@ -663,16 +669,17 @@ export class GameEngine {
               type: 'LASER',
               x: newX + Math.cos(fireAngle) * 16 + Math.cos(perpAngle) * off,
               y: newY + Math.sin(fireAngle) * 16 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(spreadAngle) * projectileSpeed,
-              vy: vy + Math.sin(spreadAngle) * projectileSpeed,
+              vx: vx + Math.cos(spreadAngle) * (baseSpeed + 20),
+              vy: vy + Math.sin(spreadAngle) * (baseSpeed + 20),
               damage: dmgPerBolt,
               lifetime: 1.8,
               color: '#C084FC',
+              radius: 2.2,
             });
           });
         } else if (weaponLvl === 4) {
-          // Tier 4: Quad Crimson Antimatter Cannons
-          const dmgPerBolt = weaponDamage * 0.38;
+          // MK-4: Quad Crimson Antimatter Cannons
+          const dmgPerBolt = weaponDamage * 0.36;
           [-18, -7, 7, 18].forEach((off) => {
             state.addProjectile({
               id: `p_player_${Date.now()}_${Math.random()}`,
@@ -680,27 +687,29 @@ export class GameEngine {
               type: 'LASER',
               x: newX + Math.cos(fireAngle) * 16 + Math.cos(perpAngle) * off,
               y: newY + Math.sin(fireAngle) * 16 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle) * (projectileSpeed + 40),
-              vy: vy + Math.sin(fireAngle) * (projectileSpeed + 40),
+              vx: vx + Math.cos(fireAngle) * (baseSpeed + 50),
+              vy: vy + Math.sin(fireAngle) * (baseSpeed + 50),
               damage: dmgPerBolt,
-              lifetime: 1.8,
+              lifetime: 1.9,
               color: '#FF3366',
+              radius: 2.8,
             });
           });
         } else if (weaponLvl === 5) {
-          // Tier 5: Overcharged Golden Solar Lance (Piercing Core + Blazing Wings)
-          const dmgPerBolt = weaponDamage * 0.55;
+          // MK-5: Overcharged Golden Solar Lance
+          const dmgPerBolt = weaponDamage * 0.50;
           state.addProjectile({
             id: `p_player_${Date.now()}_${Math.random()}`,
             owner: 'PLAYER',
             type: 'LASER',
             x: newX + Math.cos(fireAngle) * 26,
             y: newY + Math.sin(fireAngle) * 26,
-            vx: vx + Math.cos(fireAngle) * (projectileSpeed + 100),
-            vy: vy + Math.sin(fireAngle) * (projectileSpeed + 100),
-            damage: dmgPerBolt * 1.25,
+            vx: vx + Math.cos(fireAngle) * (baseSpeed + 90),
+            vy: vy + Math.sin(fireAngle) * (baseSpeed + 90),
+            damage: dmgPerBolt * 1.35,
             lifetime: 2.0,
             color: '#FFDD00',
+            radius: 3.6,
           });
           [-16, 16].forEach((off) => {
             state.addProjectile({
@@ -709,47 +718,49 @@ export class GameEngine {
               type: 'LASER',
               x: newX + Math.cos(fireAngle) * 18 + Math.cos(perpAngle) * off,
               y: newY + Math.sin(fireAngle) * 18 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle) * projectileSpeed,
-              vy: vy + Math.sin(fireAngle) * projectileSpeed,
-              damage: dmgPerBolt,
+              vx: vx + Math.cos(fireAngle) * (baseSpeed + 40),
+              vy: vy + Math.sin(fireAngle) * (baseSpeed + 40),
+              damage: dmgPerBolt * 0.85,
               lifetime: 2.0,
               color: '#FFDD00',
+              radius: 2.6,
             });
           });
         } else if (weaponLvl === 6) {
-          // Tier 6: Tachyon Disintegrator Array (5 Emerald High-Velocity Piercers)
-          const dmgPerBolt = weaponDamage * 0.36;
-          // Center heavy tachyon lance
+          // MK-6: Tachyon Emerald Disintegrator Array (5 High-Speed Needles)
+          const dmgPerBolt = weaponDamage * 0.32;
           state.addProjectile({
             id: `p_player_${Date.now()}_${Math.random()}`,
             owner: 'PLAYER',
             type: 'LASER',
             x: newX + Math.cos(fireAngle) * 28,
             y: newY + Math.sin(fireAngle) * 28,
-            vx: vx + Math.cos(fireAngle) * (projectileSpeed + 130),
-            vy: vy + Math.sin(fireAngle) * (projectileSpeed + 130),
-            damage: dmgPerBolt * 1.35,
+            vx: vx + Math.cos(fireAngle) * (baseSpeed + 130),
+            vy: vy + Math.sin(fireAngle) * (baseSpeed + 130),
+            damage: dmgPerBolt * 1.4,
             lifetime: 2.1,
-            color: '#34D399',
+            color: '#10B981',
+            radius: 3.0,
           });
           [-22, -11, 11, 22].forEach((off, idx) => {
-            const spread = (idx === 0 || idx === 3 ? (idx < 2 ? -0.06 : 0.06) : 0);
+            const spread = (idx === 0 || idx === 3 ? (idx < 2 ? -0.05 : 0.05) : 0);
             state.addProjectile({
               id: `p_player_${Date.now()}_${Math.random()}`,
               owner: 'PLAYER',
               type: 'LASER',
               x: newX + Math.cos(fireAngle) * 18 + Math.cos(perpAngle) * off,
               y: newY + Math.sin(fireAngle) * 18 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle + spread) * (projectileSpeed + 70),
-              vy: vy + Math.sin(fireAngle + spread) * (projectileSpeed + 70),
+              vx: vx + Math.cos(fireAngle + spread) * (baseSpeed + 80),
+              vy: vy + Math.sin(fireAngle + spread) * (baseSpeed + 80),
               damage: dmgPerBolt,
               lifetime: 2.0,
-              color: '#34D399',
+              color: '#10B981',
+              radius: 2.4,
             });
           });
         } else if (weaponLvl === 7) {
-          // Tier 7: Quantum Singularity Salvo (6 Neon-Pink Quantum Bolts)
-          const dmgPerBolt = weaponDamage * 0.34;
+          // MK-7: Quantum Singularity Salvo (6 Neon-Pink Quantum Beams)
+          const dmgPerBolt = weaponDamage * 0.30;
           [-24, -14, -5, 5, 14, 24].forEach((off, idx) => {
             const spread = (idx - 2.5) * 0.025;
             state.addProjectile({
@@ -758,32 +769,32 @@ export class GameEngine {
               type: 'LASER',
               x: newX + Math.cos(fireAngle) * 20 + Math.cos(perpAngle) * off,
               y: newY + Math.sin(fireAngle) * 20 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle + spread) * (projectileSpeed + 110),
-              vy: vy + Math.sin(fireAngle + spread) * (projectileSpeed + 110),
+              vx: vx + Math.cos(fireAngle + spread) * (baseSpeed + 110),
+              vy: vy + Math.sin(fireAngle + spread) * (baseSpeed + 110),
               damage: dmgPerBolt,
               lifetime: 2.2,
               color: '#EC4899',
+              radius: 3.0,
             });
           });
-        } else {
-          // Tier 8: Apex Hyper-Nova Battery (7 Supreme Violet-Plasma Heavy Lances)
-          const dmgPerBolt = weaponDamage * 0.35;
-          // Dual Overcharged Core Lances
-          [-6, 6].forEach((off) => {
+        } else if (weaponLvl === 8) {
+          // MK-8: Apex Hyper-Nova Battery (7 Supreme Violet-Plasma Heavy Lances)
+          const dmgPerBolt = weaponDamage * 0.32;
+          [-7, 7].forEach((off) => {
             state.addProjectile({
               id: `p_player_${Date.now()}_${Math.random()}`,
               owner: 'PLAYER',
               type: 'LASER',
               x: newX + Math.cos(fireAngle) * 32 + Math.cos(perpAngle) * off,
               y: newY + Math.sin(fireAngle) * 32 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle) * (projectileSpeed + 160),
-              vy: vy + Math.sin(fireAngle) * (projectileSpeed + 160),
+              vx: vx + Math.cos(fireAngle) * (baseSpeed + 150),
+              vy: vy + Math.sin(fireAngle) * (baseSpeed + 150),
               damage: dmgPerBolt * 1.45,
-              lifetime: 2.4,
+              lifetime: 2.3,
               color: '#A855F7',
+              radius: 3.8,
             });
           });
-          // 5 Broadside Outer Nova Cannons
           [-28, -18, 0, 18, 28].forEach((off, idx) => {
             const spread = (idx - 2) * 0.035;
             state.addProjectile({
@@ -792,13 +803,157 @@ export class GameEngine {
               type: 'LASER',
               x: newX + Math.cos(fireAngle) * 22 + Math.cos(perpAngle) * off,
               y: newY + Math.sin(fireAngle) * 22 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle + spread) * (projectileSpeed + 90),
-              vy: vy + Math.sin(fireAngle + spread) * (projectileSpeed + 90),
+              vx: vx + Math.cos(fireAngle + spread) * (baseSpeed + 90),
+              vy: vy + Math.sin(fireAngle + spread) * (baseSpeed + 90),
               damage: dmgPerBolt,
               lifetime: 2.2,
               color: '#A855F7',
+              radius: 3.2,
             });
           });
+        } else if (weaponLvl <= 14) {
+          // MK-9 to MK-14: Hellfire Plasma Incinerators (Hellfire Orange Salvo)
+          const boltCount = Math.min(8, 6 + (weaponLvl - 9));
+          const dmgPerBolt = weaponDamage / boltCount;
+          for (let i = 0; i < boltCount; i++) {
+            const off = (i - (boltCount - 1) / 2) * 9;
+            const spread = (i - (boltCount - 1) / 2) * 0.025;
+            state.addProjectile({
+              id: `p_player_${Date.now()}_${i}_${Math.random()}`,
+              owner: 'PLAYER',
+              type: 'LASER',
+              x: newX + Math.cos(fireAngle) * 26 + Math.cos(perpAngle) * off,
+              y: newY + Math.sin(fireAngle) * 26 + Math.sin(perpAngle) * off,
+              vx: vx + Math.cos(fireAngle + spread) * (baseSpeed + 130),
+              vy: vy + Math.sin(fireAngle + spread) * (baseSpeed + 130),
+              damage: dmgPerBolt * 1.1,
+              lifetime: 2.3,
+              color: '#F97316',
+              radius: 3.6,
+            });
+          }
+        } else if (weaponLvl <= 20) {
+          // MK-15 to MK-20: Prismatic Diamond Beam Lances (White/Cyan Hypersonic Beams)
+          const boltCount = 8;
+          const dmgPerBolt = weaponDamage / boltCount;
+          for (let i = 0; i < boltCount; i++) {
+            const off = (i - 3.5) * 8;
+            const spread = (i - 3.5) * 0.02;
+            state.addProjectile({
+              id: `p_player_${Date.now()}_${i}_${Math.random()}`,
+              owner: 'PLAYER',
+              type: 'LASER',
+              x: newX + Math.cos(fireAngle) * 28 + Math.cos(perpAngle) * off,
+              y: newY + Math.sin(fireAngle) * 28 + Math.sin(perpAngle) * off,
+              vx: vx + Math.cos(fireAngle + spread) * (baseSpeed + 180),
+              vy: vy + Math.sin(fireAngle + spread) * (baseSpeed + 180),
+              damage: dmgPerBolt * 1.15,
+              lifetime: 2.4,
+              color: '#FFFFFF',
+              radius: 3.2,
+            });
+          }
+        } else if (weaponLvl <= 28) {
+          // MK-21 to MK-28: Dark Matter Void Singularity Cannons (Deep Indigo Heavy Bolts)
+          const boltCount = Math.min(10, 8 + Math.floor((weaponLvl - 21) / 3));
+          const dmgPerBolt = weaponDamage / boltCount;
+          for (let i = 0; i < boltCount; i++) {
+            const off = (i - (boltCount - 1) / 2) * 10;
+            const spread = (i - (boltCount - 1) / 2) * 0.03;
+            state.addProjectile({
+              id: `p_player_${Date.now()}_${i}_${Math.random()}`,
+              owner: 'PLAYER',
+              type: 'LASER',
+              x: newX + Math.cos(fireAngle) * 30 + Math.cos(perpAngle) * off,
+              y: newY + Math.sin(fireAngle) * 30 + Math.sin(perpAngle) * off,
+              vx: vx + Math.cos(fireAngle + spread) * (baseSpeed + 160),
+              vy: vy + Math.sin(fireAngle + spread) * (baseSpeed + 160),
+              damage: dmgPerBolt * 1.2,
+              lifetime: 2.4,
+              color: '#6366F1',
+              radius: 4.2,
+            });
+          }
+        } else if (weaponLvl <= 36) {
+          // MK-29 to MK-36: Chrono-Teal Phased Disintegrators (Chrono Teal Phased Barrage)
+          const boltCount = 10;
+          const dmgPerBolt = weaponDamage / boltCount;
+          for (let i = 0; i < boltCount; i++) {
+            const off = (i - 4.5) * 9;
+            const spread = (i - 4.5) * 0.024;
+            state.addProjectile({
+              id: `p_player_${Date.now()}_${i}_${Math.random()}`,
+              owner: 'PLAYER',
+              type: 'LASER',
+              x: newX + Math.cos(fireAngle) * 32 + Math.cos(perpAngle) * off,
+              y: newY + Math.sin(fireAngle) * 32 + Math.sin(perpAngle) * off,
+              vx: vx + Math.cos(fireAngle + spread) * (baseSpeed + 200),
+              vy: vy + Math.sin(fireAngle + spread) * (baseSpeed + 200),
+              damage: dmgPerBolt * 1.25,
+              lifetime: 2.5,
+              color: '#06B6D4',
+              radius: 4.0,
+            });
+          }
+        } else if (weaponLvl <= 44) {
+          // MK-37 to MK-44: Blood Ruby Super-Cannons (Apex Ruby #E11D48 Heavy Super-Salvo)
+          const boltCount = Math.min(12, 10 + Math.floor((weaponLvl - 37) / 3));
+          const dmgPerBolt = weaponDamage / boltCount;
+          for (let i = 0; i < boltCount; i++) {
+            const off = (i - (boltCount - 1) / 2) * 9.5;
+            const spread = (i - (boltCount - 1) / 2) * 0.028;
+            state.addProjectile({
+              id: `p_player_${Date.now()}_${i}_${Math.random()}`,
+              owner: 'PLAYER',
+              type: 'LASER',
+              x: newX + Math.cos(fireAngle) * 34 + Math.cos(perpAngle) * off,
+              y: newY + Math.sin(fireAngle) * 34 + Math.sin(perpAngle) * off,
+              vx: vx + Math.cos(fireAngle + spread) * (baseSpeed + 220),
+              vy: vy + Math.sin(fireAngle + spread) * (baseSpeed + 220),
+              damage: dmgPerBolt * 1.3,
+              lifetime: 2.5,
+              color: '#E11D48',
+              radius: 4.8,
+            });
+          }
+        } else {
+          // MK-45 to MK-50+: Celestial God-Lance Supernova Battery (Starlight Gold Supreme Heavy Lances)
+          const boltCount = 12;
+          const dmgPerBolt = weaponDamage / boltCount;
+          // Dual Core Lances
+          [-7, 7].forEach((off) => {
+            state.addProjectile({
+              id: `p_player_${Date.now()}_${Math.random()}`,
+              owner: 'PLAYER',
+              type: 'LASER',
+              x: newX + Math.cos(fireAngle) * 38 + Math.cos(perpAngle) * off,
+              y: newY + Math.sin(fireAngle) * 38 + Math.sin(perpAngle) * off,
+              vx: vx + Math.cos(fireAngle) * (baseSpeed + 260),
+              vy: vy + Math.sin(fireAngle) * (baseSpeed + 260),
+              damage: dmgPerBolt * 2.0,
+              lifetime: 2.6,
+              color: '#FBBF24',
+              radius: 5.6,
+            });
+          });
+          // 10 Outer Nova Lances
+          for (let i = 0; i < 10; i++) {
+            const off = (i - 4.5) * 11;
+            const spread = (i - 4.5) * 0.032;
+            state.addProjectile({
+              id: `p_player_${Date.now()}_${i}_${Math.random()}`,
+              owner: 'PLAYER',
+              type: 'LASER',
+              x: newX + Math.cos(fireAngle) * 28 + Math.cos(perpAngle) * off,
+              y: newY + Math.sin(fireAngle) * 28 + Math.sin(perpAngle) * off,
+              vx: vx + Math.cos(fireAngle + spread) * (baseSpeed + 210),
+              vy: vy + Math.sin(fireAngle + spread) * (baseSpeed + 210),
+              damage: dmgPerBolt * 1.15,
+              lifetime: 2.5,
+              color: '#FBBF24',
+              radius: 4.4,
+            });
+          }
         }
         SoundManager.playLaser(false);
       }
@@ -1903,30 +2058,57 @@ export class GameEngine {
         const distToForm = Math.hypot(targetFormX - ex, targetFormY - ey);
         const distToPlayer = Math.hypot(newX - ex, newY - ey);
 
+        // Rubber-banding snapback if escort drifted more than 1 screen away from player
+        const maxAllowedDistance = Math.max(1400, 1100 / Math.max(0.25, this.currentZoom));
+        if (distToPlayer > maxAllowedDistance) {
+          ex = targetFormX;
+          ey = targetFormY;
+          evx = vx;
+          evy = vy;
+          // Spawn warp flash particles
+          for (let i = 0; i < 12; i++) {
+            const wAngle = (i / 12) * Math.PI * 2;
+            this.particles.push({
+              x: ex,
+              y: ey,
+              vx: Math.cos(wAngle) * 90,
+              vy: Math.sin(wAngle) * 90,
+              color: '#00F0FF',
+              size: 2.2,
+              alpha: 0.95,
+              lifetime: 0.35,
+              maxLifetime: 0.35,
+            });
+          }
+        }
+
         // Catch-up multiplier so fleet never falls behind when player upgrades engines or boosts
         const catchupMultiplier = Math.min(3.6, 1.0 + distToForm / 90);
         const maxFollowSpeed = escortBaseSpeed * catchupMultiplier;
         const desiredFollowSpeed = Math.min(maxFollowSpeed, Math.max(playerSpeed * 1.3, distToForm * 5.8));
         const formMoveAngle = Math.atan2(targetFormY - ey, targetFormX - ex);
 
-        // Specialty 1: Auto-Mining Barge (Follows player fleet, mines asteroids in reach)
+        // Specialty 1: Auto-Mining Barge (Follows player fleet, mines anything visible on screen)
         if (escort.type === 'MINING_BARGE') {
-          // Look for closest asteroid within reach of player & fleet (within 550px of player and 420px of barge)
+          // Screen-wide reach for mining visible asteroids
+          const screenMiningRadius = Math.max(950, 800 / Math.max(0.25, this.currentZoom));
           let closestAst: Asteroid | null = null;
-          let minAstDist = 420;
+          let minAstDist = screenMiningRadius;
           const liveAsteroids = world.asteroids || [];
           for (const ast of liveAsteroids) {
             if (ast.health > 0) {
               const dPlayer = Math.hypot(ast.x - newX, ast.y - newY);
               const dBarge = Math.hypot(ast.x - ex, ast.y - ey);
-              if (dPlayer < 560 && dBarge < minAstDist) {
-                minAstDist = dBarge;
-                closestAst = ast;
+              if (dPlayer <= screenMiningRadius || dBarge <= screenMiningRadius) {
+                if (dBarge < minAstDist) {
+                  minAstDist = dBarge;
+                  closestAst = ast;
+                }
               }
             }
           }
 
-          // Always fly with the fleet formation position
+          // Always fly with the fleet formation position so it keeps up
           evx += (Math.cos(formMoveAngle) * desiredFollowSpeed - evx) * Math.min(1, 5.0 * dt);
           evy += (Math.sin(formMoveAngle) * desiredFollowSpeed - evy) * Math.min(1, 5.0 * dt);
 
@@ -1936,7 +2118,7 @@ export class GameEngine {
             erot = aimAngle;
 
             // Apply mining damage to asteroid
-            const miningDps = 95;
+            const miningDps = 110;
             state.damageAsteroid(closestAst.id, miningDps * dt);
 
             // Turquoise mining beam impact spark particles on asteroid
@@ -3834,19 +4016,19 @@ export class GameEngine {
         ctx.fill();
       } else {
         // High-Performance Dual-Pass Neon Laser Visuals (0ms GPU/CPU Gaussian blur overhead)
-        const isTier5 = p.color === '#FFDD00';
-        const isTier4 = p.color === '#FF3366';
-        const isTier3 = p.color === '#C084FC';
-        const isTier2 = p.color === '#38BDF8';
-        const coreWidth = isTier5 ? 4.5 : isTier4 ? 3.8 : isTier3 ? 3.2 : isTier2 ? 2.8 : 2.4;
-        const trailLen = isTier5 ? 0.055 : 0.04;
+        const isTier5 = p.color === '#FFDD00' || p.color === '#FBBF24';
+        const isTier4 = p.color === '#FF3366' || p.color === '#E11D48';
+        const isTier3 = p.color === '#C084FC' || p.color === '#A855F7';
+        const isTier2 = p.color === '#38BDF8' || p.color === '#06B6D4';
+        const coreWidth = p.radius ? p.radius * 1.5 : (isTier5 ? 4.5 : isTier4 ? 3.8 : isTier3 ? 3.2 : isTier2 ? 2.8 : 2.4);
+        const trailLen = p.radius ? Math.min(0.065, 0.038 + p.radius * 0.004) : (isTier5 ? 0.055 : 0.04);
         const x2 = p.x - p.vx * trailLen;
         const y2 = p.y - p.vy * trailLen;
 
         // Pass 1: Outer Soft Neon Plasma Aura
         ctx.strokeStyle = p.color;
-        ctx.globalAlpha = 0.38;
-        ctx.lineWidth = coreWidth * 2.5;
+        ctx.globalAlpha = 0.42;
+        ctx.lineWidth = coreWidth * 2.6;
         ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.moveTo(p.x, p.y);
@@ -3862,9 +4044,9 @@ export class GameEngine {
         ctx.stroke();
 
         // Emitter Core Tip
-        ctx.fillStyle = isTier5 ? '#FFFBEB' : '#FFFFFF';
+        ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
-        ctx.arc(p.x, p.y, isTier5 ? 3.2 : 2.0, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, Math.max(2.0, coreWidth * 0.62), 0, Math.PI * 2);
         ctx.fill();
       }
 

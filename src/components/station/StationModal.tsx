@@ -52,6 +52,8 @@ export const StationModal: React.FC = () => {
   const buyTorpedoLauncher = useGameStore((state) => state.buyTorpedoLauncher);
   const buyTorpedoAmmo = useGameStore((state) => state.buyTorpedoAmmo);
   const buyEmpGenerator = useGameStore((state) => state.buyEmpGenerator);
+  const upgradeAutoTurrets = useGameStore((state) => state.upgradeAutoTurrets);
+  const buyBeamWeapon = useGameStore((state) => state.buyBeamWeapon);
   const buyEscortShip = useGameStore((state) => state.buyEscortShip);
   const sellEscortShip = useGameStore((state) => state.sellEscortShip);
   const repairEscorts = useGameStore((state) => state.repairEscorts);
@@ -848,7 +850,7 @@ export const StationModal: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {/* Torpedo Launcher / Ammo */}
+                  {/* Photon Torpedoes */}
                   <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl flex items-center justify-between">
                     <div>
                       <div className="text-xs font-bold text-amber-300">Photon Torpedoes</div>
@@ -867,10 +869,10 @@ export const StationModal: React.FC = () => {
                     ) : (
                       <button
                         onClick={() => buyTorpedoLauncher()}
-                        disabled={!torpUnlocked || player.credits < 450}
+                        disabled={!torpUnlocked || player.credits < 750}
                         className="px-3.5 py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/50 text-amber-300 text-xs font-bold hover:bg-amber-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
                       >
-                        {torpUnlocked ? 'Unlock (450 CR)' : 'T2 Chassis Req'}
+                        {torpUnlocked ? 'Unlock (750 CR)' : 'T2 Chassis & Lvl 2 Req'}
                       </button>
                     )}
                   </div>
@@ -879,7 +881,7 @@ export const StationModal: React.FC = () => {
                   <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl flex items-center justify-between">
                     <div>
                       <div className="text-xs font-bold text-purple-300">EMP Shockwave</div>
-                      <div className="text-[10px] text-slate-400">360° EMP Stun Wave</div>
+                      <div className="text-[10px] text-slate-400">360° Stun Shockwave (E Key)</div>
                     </div>
                     {ship.hasEmpGenerator ? (
                       <span className="text-xs text-emerald-400 font-bold px-2 py-1 bg-emerald-950/60 rounded border border-emerald-500/40">
@@ -888,10 +890,52 @@ export const StationModal: React.FC = () => {
                     ) : (
                       <button
                         onClick={() => buyEmpGenerator()}
-                        disabled={!empUnlocked || player.credits < 600}
+                        disabled={!empUnlocked || player.credits < 1200}
                         className="px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
                       >
-                        {empUnlocked ? 'Install (600 CR)' : 'T4 Chassis Req'}
+                        {empUnlocked ? 'Install (1,200 CR)' : 'T4 Chassis & Shield 3 Req'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Point-Defense Auto-Flak Turrets */}
+                  <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-yellow-300">Point-Defense Flak Turrets</div>
+                      <div className="text-[10px] text-slate-400">Auto-intercepts missiles & raiders</div>
+                    </div>
+                    {ship.hasAutoTurrets ? (
+                      <span className="text-xs text-emerald-400 font-bold px-2 py-1 bg-emerald-950/60 rounded border border-emerald-500/40">
+                        INSTALLED
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => upgradeAutoTurrets()}
+                        disabled={weaponLvl < 3 || shipTier < 3 || player.credits < 950}
+                        className="px-3.5 py-1.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                      >
+                        {weaponLvl >= 3 && shipTier >= 3 ? 'Install (950 CR)' : 'T3 Chassis & Lvl 3 Req'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Continuous Phaser Beam Lance */}
+                  <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-cyan-300">Phaser Beam Lance</div>
+                      <div className="text-[10px] text-slate-400">Lock-on continuous particle beam</div>
+                    </div>
+                    {ship.hasBeamWeapon ? (
+                      <span className="text-xs text-emerald-400 font-bold px-2 py-1 bg-emerald-950/60 rounded border border-emerald-500/40">
+                        INSTALLED
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => buyBeamWeapon()}
+                        disabled={shipTier < 6 || player.credits < 2800}
+                        className="px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                      >
+                        {shipTier >= 6 ? 'Install (2,800 CR)' : 'T6 Frigate Chassis Req'}
                       </button>
                     )}
                   </div>
@@ -959,94 +1003,106 @@ export const StationModal: React.FC = () => {
                   </div>
                 )}
 
-                {/* 5B. Escort Recruitment Catalog */}
-                <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wider pt-1">
-                  Armada Recruitment & Deployment Catalog
+                {/* 5B. Escort Recruitment Catalog (Showing Unlocked + Next Upcoming Class) */}
+                <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wider pt-1 flex items-center justify-between">
+                  <span>Armada Recruitment & Deployment</span>
+                  <span className="text-[10px] text-cyan-400 font-normal">Available at Tier {shipTier}</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {ESCORT_CLASSES.map((escortDef) => {
-                    const isTierUnlocked = shipTier >= escortDef.minShipTier;
-                    const canAfford = player.credits >= escortDef.cost;
-                    const canBuy = isTierUnlocked && escortSpace > 0 && canAfford;
+                  {(() => {
+                    const unlocked = ESCORT_CLASSES.filter((e) => shipTier >= e.minShipTier);
+                    const nextLocked = ESCORT_CLASSES.find((e) => shipTier < e.minShipTier);
+                    const visibleList = nextLocked ? [...unlocked, nextLocked] : unlocked;
 
-                    return (
-                      <div
-                        key={escortDef.type}
-                        className={`p-3 rounded-xl border flex flex-col justify-between space-y-2 transition-all ${
-                          isTierUnlocked
-                            ? escortDef.isSpecialty
-                              ? 'bg-slate-900/95 border-cyan-500/50 hover:border-cyan-400 shadow-md'
-                              : 'bg-slate-900/90 border-slate-800 hover:border-purple-500/50'
-                            : 'bg-slate-950/50 border-slate-900 opacity-60'
-                        }`}
-                      >
-                        <div>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <span
-                                className="w-2.5 h-2.5 rounded-full"
-                                style={{ backgroundColor: escortDef.color }}
-                              />
-                              <span className="text-xs font-bold text-white">{escortDef.name}</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              {escortDef.isSpecialty && (
-                                <span className="text-[8px] px-1.5 py-0.2 rounded font-black bg-cyan-950 text-cyan-300 border border-cyan-500/50">
-                                  SPECIALTY
+                    return visibleList.map((escortDef) => {
+                      const isTierUnlocked = shipTier >= escortDef.minShipTier;
+                      const canAfford = player.credits >= escortDef.cost;
+                      const canBuy = isTierUnlocked && escortSpace > 0 && canAfford;
+
+                      return (
+                        <div
+                          key={escortDef.type}
+                          className={`p-3 rounded-xl border flex flex-col justify-between space-y-2 transition-all ${
+                            isTierUnlocked
+                              ? escortDef.isSpecialty
+                                ? 'bg-slate-900/95 border-cyan-500/50 hover:border-cyan-400 shadow-md'
+                                : 'bg-slate-900/90 border-slate-800 hover:border-purple-500/50'
+                              : 'bg-slate-950/50 border-amber-500/30 opacity-75'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full"
+                                  style={{ backgroundColor: escortDef.color }}
+                                />
+                                <span className="text-xs font-bold text-white">{escortDef.name}</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                {escortDef.isSpecialty && (
+                                  <span className="text-[8px] px-1.5 py-0.2 rounded font-black bg-cyan-950 text-cyan-300 border border-cyan-500/50">
+                                    SPECIALTY
+                                  </span>
+                                )}
+                                {!isTierUnlocked && (
+                                  <span className="text-[8px] px-1.5 py-0.2 rounded font-black bg-amber-950 text-amber-300 border border-amber-500/50">
+                                    🔒 NEXT UNLOCK
+                                  </span>
+                                )}
+                                <span
+                                  className="text-[9px] px-1.5 py-0.2 rounded font-mono font-bold"
+                                  style={{
+                                    backgroundColor: `${escortDef.color}20`,
+                                    color: escortDef.color,
+                                    border: `1px solid ${escortDef.color}40`,
+                                  }}
+                                >
+                                  {escortDef.type}
                                 </span>
-                              )}
-                              <span
-                                className="text-[9px] px-1.5 py-0.2 rounded font-mono font-bold"
-                                style={{
-                                  backgroundColor: `${escortDef.color}20`,
-                                  color: escortDef.color,
-                                  border: `1px solid ${escortDef.color}40`,
-                                }}
-                              >
-                                {escortDef.type}
-                              </span>
+                              </div>
+                            </div>
+
+                            <p className="text-[11px] text-slate-300 mt-1 line-clamp-2">
+                              {escortDef.description}
+                            </p>
+
+                            <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono text-cyan-300 mt-1.5">
+                              <span>HP: {escortDef.hull}</span>
+                              <span>•</span>
+                              <span>Shield: {escortDef.shield}</span>
+                              <span>•</span>
+                              <span className="text-amber-300">{escortDef.perks}</span>
                             </div>
                           </div>
 
-                          <p className="text-[11px] text-slate-300 mt-1 line-clamp-2">
-                            {escortDef.description}
-                          </p>
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-900">
+                            <span className="text-[11px] font-bold text-yellow-300 font-mono">
+                              {escortDef.cost.toLocaleString()} CR
+                            </span>
 
-                          <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono text-cyan-300 mt-1.5">
-                            <span>HP: {escortDef.hull}</span>
-                            <span>•</span>
-                            <span>Shield: {escortDef.shield}</span>
-                            <span>•</span>
-                            <span className="text-amber-300">{escortDef.perks}</span>
+                            <button
+                              onClick={() => buyEscortShip(escortDef.type)}
+                              disabled={!canBuy}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                isTierUnlocked
+                                  ? escortDef.isSpecialty
+                                    ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black shadow-glow-cyan disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer'
+                                    : 'bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-md'
+                                  : 'bg-slate-800 text-amber-400 cursor-not-allowed text-[10px] border border-amber-500/30'
+                              }`}
+                            >
+                              {!isTierUnlocked
+                                ? `🔒 Tier ${escortDef.minShipTier} Required`
+                                : escortSpace <= 0
+                                ? 'Hangar Full'
+                                : `Deploy (${escortDef.cost.toLocaleString()} CR)`}
+                            </button>
                           </div>
                         </div>
-
-                        <div className="flex items-center justify-between pt-1 border-t border-slate-900">
-                          <span className="text-[11px] font-bold text-yellow-300 font-mono">
-                            {escortDef.cost.toLocaleString()} CR
-                          </span>
-
-                          <button
-                            onClick={() => buyEscortShip(escortDef.type)}
-                            disabled={!canBuy}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                              isTierUnlocked
-                                ? escortDef.isSpecialty
-                                  ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black shadow-glow-cyan disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer'
-                                  : 'bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-md'
-                                : 'bg-slate-800 text-slate-500 cursor-not-allowed text-[10px]'
-                            }`}
-                          >
-                            {!isTierUnlocked
-                              ? `Tier ${escortDef.minShipTier} Req`
-                              : escortSpace <= 0
-                              ? 'Hangar Full'
-                              : `Deploy (${escortDef.cost.toLocaleString()} CR)`}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             </div>
