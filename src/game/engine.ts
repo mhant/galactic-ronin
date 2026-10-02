@@ -148,6 +148,8 @@ export class GameEngine {
   private playerBeamDamageTimer: number = 0;
   private enemyBeamDamageAccumulator: number = 0;
   private enemyBeamDamageTimer: number = 0;
+  private enemyBeamEscortAccumulator: number = 0;
+  private enemyBeamEscortTargetId: string | null = null;
 
   // Dynamic Camera Zoom & FOV
   private currentZoom: number = 1.0;
@@ -1575,10 +1577,32 @@ export class GameEngine {
         const maxFireRange = isCapital ? 750 : isCruiser ? 680 : isFrigate ? 620 : 560;
         const laserSpeed = isCapital ? 620 : isCruiser ? 580 : 540;
 
+        // Optionally target the nearest player escort instead of always the player (30% chance)
+        const nearbyPlayerEscorts = (useGameStore.getState().world.escorts || []).filter(
+          (e) => e.owner === 'PLAYER' && e.hull > 0 && Math.hypot(e.x - enemy.x, e.y - enemy.y) < maxFireRange
+        );
+        let fireTargetX = newX;
+        let fireTargetY = newY;
+        let fireTargetVx = vx;
+        let fireTargetVy = vy;
+        if (nearbyPlayerEscorts.length > 0 && Math.random() < 0.30) {
+          // Target the closest escort
+          let minEscDist = Infinity;
+          let closestEsc = nearbyPlayerEscorts[0];
+          for (const esc of nearbyPlayerEscorts) {
+            const d = Math.hypot(esc.x - enemy.x, esc.y - enemy.y);
+            if (d < minEscDist) { minEscDist = d; closestEsc = esc; }
+          }
+          fireTargetX = closestEsc.x;
+          fireTargetY = closestEsc.y;
+          fireTargetVx = closestEsc.vx || 0;
+          fireTargetVy = closestEsc.vy || 0;
+        }
+
         // Predictive target intercept calculation with slight natural aim variance
-        const leadTime = Math.min(1.2, distToPlayer / laserSpeed);
-        const predTargetX = newX + vx * leadTime * 0.75;
-        const predTargetY = newY + vy * leadTime * 0.75;
+        const leadTime = Math.min(1.2, Math.hypot(fireTargetX - enemy.x, fireTargetY - enemy.y) / laserSpeed);
+        const predTargetX = fireTargetX + fireTargetVx * leadTime * 0.75;
+        const predTargetY = fireTargetY + fireTargetVy * leadTime * 0.75;
         const fireAngle = Math.atan2(predTargetY - enemy.y, predTargetX - enemy.x);
         const aimDiff = Math.abs(Math.atan2(Math.sin(fireAngle - enemyRot), Math.cos(fireAngle - enemyRot)));
         const isFacingPlayer = aimDiff < 0.52;
@@ -1594,6 +1618,7 @@ export class GameEngine {
           const shotAngle = fireAngle + spread;
           const perp = shotAngle + Math.PI / 2;
           const projLifetime = Math.max(1.8, (distToPlayer + 220) / laserSpeed);
+
 
           if (isCapital) {
             // Quad heavy plasma battery salvo
@@ -2016,6 +2041,7 @@ export class GameEngine {
     // Enemy Heavy Beam Weapons (Disabled if stunned)
     let anyEnemyBeamFiring = false;
     const { dmgMult: beamDmgMult } = getDifficultyMultipliers(state.difficulty || 'EASY');
+    const livePlayerEscortsForBeam = (useGameStore.getState().world.escorts || []).filter((e) => e.owner === 'PLAYER' && e.hull > 0);
     for (const en of liveEnemiesForBeam) {
       if (en.hasBeamWeapon && (!en.stunDuration || en.stunDuration <= 0)) {
         const d = Math.hypot(newX - en.x, newY - en.y);
@@ -2038,6 +2064,15 @@ export class GameEngine {
               maxLifetime: 0.22,
             });
           }
+
+          // Beam also sweeps nearby player escorts within range
+          for (const esc of livePlayerEscortsForBeam) {
+            const escDist = Math.hypot(esc.x - en.x, esc.y - en.y);
+            if (escDist < 450) {
+              this.enemyBeamEscortAccumulator += 7 * beamDmgMult * dt;
+              this.enemyBeamEscortTargetId = esc.id;
+            }
+          }
         }
       }
     }
@@ -2048,10 +2083,22 @@ export class GameEngine {
         state.damagePlayer(this.enemyBeamDamageAccumulator);
         this.enemyBeamDamageAccumulator = 0;
         this.enemyBeamDamageTimer = 0;
+        // Also apply accumulated beam damage to nearby escort
+        if (this.enemyBeamEscortTargetId && this.enemyBeamEscortAccumulator > 0) {
+          const escRes = state.damageEscort(this.enemyBeamEscortTargetId, this.enemyBeamEscortAccumulator);
+          if (escRes.destroyed) {
+            const destroyedEsc = livePlayerEscortsForBeam.find((e) => e.id === this.enemyBeamEscortTargetId);
+            if (destroyedEsc) this.spawnExplosionParticles(destroyedEsc.x, destroyedEsc.y, '#34D399', 22);
+          }
+          this.enemyBeamEscortAccumulator = 0;
+          this.enemyBeamEscortTargetId = null;
+        }
       }
     } else {
       this.enemyBeamDamageAccumulator = 0;
       this.enemyBeamDamageTimer = 0;
+      this.enemyBeamEscortAccumulator = 0;
+      this.enemyBeamEscortTargetId = null;
     }
 
     // 12c. Escort Armada Fleet Simulation (Autonomous wingmen)
