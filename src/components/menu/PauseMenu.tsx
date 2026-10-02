@@ -177,10 +177,10 @@ export const PauseMenu: React.FC = () => {
               <span>COMBAT DIFFICULTY</span>
             </span>
             <span className="text-[10px] text-slate-400 font-semibold">
-              {difficulty === 'EASY' && 'Standard (1.0x)'}
-              {difficulty === 'NORMAL' && 'Tougher (+50% HP & Firepower)'}
-              {difficulty === 'HARD' && 'Veteran (+100% / 3.0x HP)'}
-              {difficulty === 'EXTREME' && 'Nightmare (+200% / 9.0x HP)'}
+              {difficulty === 'EASY' && 'Base (2.0x HP & Firepower)'}
+              {difficulty === 'NORMAL' && 'Normal (2x Easy / 4.0x HP)'}
+              {difficulty === 'HARD' && 'Hard (4x Easy / 8.0x HP)'}
+              {difficulty === 'EXTREME' && 'Extreme (8x Easy / 16.0x HP)'}
             </span>
           </div>
           <div className="grid grid-cols-4 gap-1.5">

@@ -30,17 +30,18 @@ import { SHIP_CLASSES, getShipClass, getEscortClass, getMaxEscortsForTier } from
 export const getDifficultyMultipliers = (difficulty: GameDifficulty = 'EASY') => {
   switch (difficulty) {
     case 'NORMAL':
-      // 50% bump for normal (+50% HP/Shield & Weapon Damage)
-      return { hpMult: 1.5, dmgMult: 1.5, bountyMult: 1.35 };
+      // 2x difficulty from Easy (4.0x HP & 3.5x Damage)
+      return { hpMult: 4.0, dmgMult: 3.5, bountyMult: 1.5 };
     case 'HARD':
-      // another 100% bump on top of normal (2.0x normal = 3.0x easy base)
-      return { hpMult: 3.0, dmgMult: 2.5, bountyMult: 2.0 };
+      // 4x difficulty from Easy (8.0x HP & 6.0x Damage)
+      return { hpMult: 8.0, dmgMult: 6.0, bountyMult: 2.5 };
     case 'EXTREME':
-      // 200% on top of hard (3.0x hard = 9.0x easy base)
-      return { hpMult: 9.0, dmgMult: 5.0, bountyMult: 3.5 };
+      // 8x difficulty from Easy (16.0x HP & 10.0x Damage)
+      return { hpMult: 16.0, dmgMult: 10.0, bountyMult: 4.0 };
     case 'EASY':
     default:
-      return { hpMult: 1.0, dmgMult: 1.0, bountyMult: 1.0 };
+      // Base Easy increased by 2x (2.0x HP & 2.0x Damage)
+      return { hpMult: 2.0, dmgMult: 2.0, bountyMult: 1.0 };
   }
 };
 import { getMineral, getRandomMineralForSector } from '../data/minerals';
@@ -392,7 +393,7 @@ export function createScaledEnemy(
     volleysNeeded = 7.5 + ((factor - 0.95) / 0.10) * 2.5;
   }
 
-  const difficulty = difficultyOverride || 'EASY';
+  const difficulty = difficultyOverride || (typeof useGameStore !== 'undefined' && useGameStore.getState ? useGameStore.getState().difficulty : 'EASY') || 'EASY';
   const { hpMult, bountyMult } = getDifficultyMultipliers(difficulty);
   const totalEffectiveHP = Math.max(45, Math.round(expectedVolleyDmg * volleysNeeded * hpMult));
 
