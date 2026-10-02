@@ -59,7 +59,7 @@ export const StationModal: React.FC = () => {
   const repairEscorts = useGameStore((state) => state.repairEscorts);
   const jumpSector = useGameStore((state) => state.jumpSector);
 
-  const [activeTab, setActiveTab] = useState<'CONTRACTS' | 'REFINERY' | 'UPGRADES'>(
+  const [activeTab, setActiveTab] = useState<'CONTRACTS' | 'REFINERY' | 'UPGRADES' | 'ARMADA'>(
     activeMission ? 'CONTRACTS' : 'REFINERY'
   );
 
@@ -222,12 +222,12 @@ export const StationModal: React.FC = () => {
           </div>
         </div>
 
-        {/* Unified 3-Tab Bar (Responsive across all screens) */}
-        <div className="shrink-0 bg-slate-950/90 px-3 py-1.5 border-b border-cyan-500/20 flex items-center justify-center gap-2">
+        {/* Unified 4-Tab Bar (Responsive across all screens) */}
+        <div className="shrink-0 bg-slate-950/90 px-3 py-1.5 border-b border-cyan-500/20 flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
           {/* Contracts & Missions Tab */}
           <button
             onClick={() => setActiveTab('CONTRACTS')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 sm:px-4 rounded-lg text-xs font-bold border transition-all cursor-pointer relative ${
+            className={`flex-1 min-w-[120px] flex items-center justify-center gap-1.5 py-2 px-2 sm:px-3 rounded-lg text-xs font-bold border transition-all cursor-pointer relative ${
               activeTab === 'CONTRACTS'
                 ? 'bg-amber-500 text-slate-950 border-amber-300 shadow-glow-amber font-black'
                 : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
@@ -235,7 +235,7 @@ export const StationModal: React.FC = () => {
           >
             <ScrollText className="w-4 h-4 text-amber-400 shrink-0" />
             <span className="truncate">
-              CONTRACTS {activeMission ? '⚡ [ON MISSION]' : `(${stationMissions.length})`}
+              CONTRACTS {activeMission ? '⚡' : `(${stationMissions.length})`}
             </span>
             {activeMission && (
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
@@ -245,27 +245,40 @@ export const StationModal: React.FC = () => {
           {/* Mineral Refinery Tab */}
           <button
             onClick={() => setActiveTab('REFINERY')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 sm:px-4 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+            className={`flex-1 min-w-[120px] flex items-center justify-center gap-1.5 py-2 px-2 sm:px-3 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
               activeTab === 'REFINERY'
                 ? 'bg-cyan-500 text-slate-950 border-cyan-300 shadow-md font-black'
                 : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
             }`}
           >
             <Gem className="w-4 h-4 text-cyan-400 shrink-0" />
-            <span className="truncate">MINERAL REFINERY ({currentCargo})</span>
+            <span className="truncate">MINERALS ({currentCargo})</span>
           </button>
 
           {/* Fleet & Upgrades Tab */}
           <button
             onClick={() => setActiveTab('UPGRADES')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 sm:px-4 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+            className={`flex-1 min-w-[120px] flex items-center justify-center gap-1.5 py-2 px-2 sm:px-3 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
               activeTab === 'UPGRADES'
                 ? 'bg-purple-600 text-white border-purple-300 shadow-md font-black'
                 : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
             }`}
           >
             <Rocket className="w-4 h-4 text-purple-400 shrink-0" />
-            <span className="truncate">FLEET & UPGRADES (T{shipTier})</span>
+            <span className="truncate">UPGRADES (T{shipTier})</span>
+          </button>
+
+          {/* Armada Fleet & Decommission Tab */}
+          <button
+            onClick={() => setActiveTab('ARMADA')}
+            className={`flex-1 min-w-[120px] flex items-center justify-center gap-1.5 py-2 px-2 sm:px-3 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+              activeTab === 'ARMADA'
+                ? 'bg-indigo-600 text-white border-indigo-300 shadow-md font-black'
+                : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
+            }`}
+          >
+            <Users className="w-4 h-4 text-indigo-400 shrink-0" />
+            <span className="truncate">ARMADA ({escorts.length}/{maxEscorts})</span>
           </button>
         </div>
 
@@ -956,52 +969,20 @@ export const StationModal: React.FC = () => {
                   </span>
                 </div>
 
-                {/* 5A. Active Deployed Escorts List & Decommission/Sell */}
-                {escorts.length > 0 && (
-                  <div className="space-y-2 bg-slate-900/60 p-2.5 rounded-xl border border-purple-500/20">
-                    <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
-                      <span>Active Armada Escorts</span>
-                      <span className="text-[10px] text-slate-400">70% Buyback Value Refund</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {escorts.map((esc, idx) => {
-                        const def = ESCORT_CLASSES.find((c) => c.type === esc.type);
-                        const refundAmount = def ? Math.round(def.cost * 0.7) : 250;
-                        return (
-                          <div
-                            key={esc.id || idx}
-                            className="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 flex items-center justify-between gap-2"
-                          >
-                            <div className="min-w-0">
-                              <div className="flex items-center space-x-1.5">
-                                <span
-                                  className="w-2 h-2 rounded-full shrink-0"
-                                  style={{ backgroundColor: def?.color || '#A855F7' }}
-                                />
-                                <span className="text-xs font-bold text-white truncate">
-                                  {esc.name}
-                                </span>
-                              </div>
-                              <div className="text-[10px] text-slate-400 font-mono mt-0.5 flex items-center gap-2">
-                                <span>HP: {Math.round(esc.hull)}/{esc.maxHull}</span>
-                                <span>•</span>
-                                <span>Shield: {Math.round(esc.shield)}/{esc.maxShield}</span>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => sellEscortShip(esc.id)}
-                              className="px-2.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-[11px] font-bold transition-all flex items-center gap-1 shrink-0 cursor-pointer"
-                              title="Decommission escort ship to free up hangar capacity"
-                            >
-                              <Trash2 className="w-3 h-3 text-rose-400" />
-                              <span>Sell (+{refundAmount.toLocaleString()} CR)</span>
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
+                {/* Quick Link Banner to Manage & Sell Fleet */}
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 p-2.5 rounded-xl border border-purple-500/30">
+                  <div className="text-xs text-slate-300 flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Deployed Armada: <strong className="text-purple-300 font-mono">{escorts.length}/{maxEscorts}</strong> wingmen active</span>
                   </div>
-                )}
+                  <button
+                    onClick={() => setActiveTab('ARMADA')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-300" />
+                    <span>Manage & Sell Fleet Ships ({escorts.length}) →</span>
+                  </button>
+                </div>
 
                 {/* 5B. Escort Recruitment Catalog (Showing Unlocked + Next Upcoming Class) */}
                 <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wider pt-1 flex items-center justify-between">
@@ -1104,6 +1085,118 @@ export const StationModal: React.FC = () => {
                     });
                   })()}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: ARMADA DECOMMISSION & FLEET MANAGEMENT */}
+          {activeTab === 'ARMADA' && (
+            <div className="max-w-5xl mx-auto space-y-4">
+              {/* Armada Command Bar */}
+              <div className="bg-slate-950/80 border border-purple-500/30 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-lg">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500 flex items-center justify-center text-purple-400">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-white tracking-wide">
+                      ARMADA FLEET COMMAND & DECOMMISSIONING
+                    </h3>
+                    <p className="text-xs text-slate-400 font-mono">
+                      Capacity: <span className="text-purple-300 font-bold">{escorts.length}/{maxEscorts} Escorts Deployed</span> • Free Hangar Slots: <span className="text-emerald-400 font-bold">{escortSpace}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => repairEscorts()}
+                    disabled={escortDamage <= 0 || player.credits < escortRepairCost}
+                    className="px-3.5 py-2 rounded-lg bg-emerald-600/20 border border-emerald-500/50 text-emerald-300 text-xs font-bold hover:bg-emerald-600/30 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  >
+                    {escortDamage > 0 ? `Repair Fleet (${escortRepairCost} CR)` : 'Fleet 100%'}
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('UPGRADES')}
+                    className="px-3.5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
+                  >
+                    + Recruit New Escorts
+                  </button>
+                </div>
+              </div>
+
+              {/* Active Deployed Escorts List & Decommission/Sell */}
+              <div className="bg-slate-950/70 border border-purple-500/30 rounded-xl p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-purple-500/20 pb-2">
+                  <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                    Deployed Armada Escorts ({escorts.length})
+                  </span>
+                  <span className="text-[11px] text-amber-300 font-mono">
+                    Decommission Buyback Value: 70% Refund
+                  </span>
+                </div>
+
+                {escorts.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {escorts.map((esc, idx) => {
+                      const def = ESCORT_CLASSES.find((c) => c.type === esc.type);
+                      const refundAmount = def ? Math.round(def.cost * 0.7) : 250;
+                      return (
+                        <div
+                          key={esc.id || idx}
+                          className="bg-slate-900/90 border border-slate-800 hover:border-purple-500/40 rounded-xl p-3.5 flex items-center justify-between gap-3 shadow-md"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center space-x-2">
+                              <span
+                                className="w-2.5 h-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: def?.color || '#A855F7' }}
+                              />
+                              <span className="text-xs font-bold text-white truncate">
+                                {esc.name}
+                              </span>
+                              {def?.isSpecialty && (
+                                <span className="text-[8px] px-1.5 py-0.2 rounded font-black bg-cyan-950 text-cyan-300 border border-cyan-500/50">
+                                  SPECIALTY
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono mt-1 flex items-center gap-2">
+                              <span>HP: {Math.round(esc.hull)}/{esc.maxHull}</span>
+                              <span>•</span>
+                              <span>Shield: {Math.round(esc.shield)}/{esc.maxShield}</span>
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-1 line-clamp-1">
+                              {def?.description}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => sellEscortShip(esc.id)}
+                            className="px-3.5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-all flex items-center gap-1.5 shrink-0 cursor-pointer shadow-md"
+                            title="Decommission escort ship to refund credits and free up hangar capacity"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Sell (+{refundAmount.toLocaleString()} CR)</span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-10 text-slate-500 space-y-2">
+                    <Users className="w-10 h-10 mx-auto text-slate-600 opacity-60" />
+                    <p className="font-bold text-slate-300 text-sm">No Escorts Currently Deployed</p>
+                    <p className="text-xs text-slate-400 max-w-md mx-auto">
+                      You currently have no wingmen in your armada. Visit the Upgrades tab to recruit fighters, gunships, mining barges, missile cruisers, or repair tenders.
+                    </p>
+                    <button
+                      onClick={() => setActiveTab('UPGRADES')}
+                      className="mt-3 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all cursor-pointer shadow-md"
+                    >
+                      Go to Armada Recruitment Catalog →
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}

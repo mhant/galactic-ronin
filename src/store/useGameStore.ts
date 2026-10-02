@@ -256,8 +256,8 @@ export function createScaledEnemy(
       nameOverride = shipOrName;
     }
     // Estimate player tier and weapon level from power
-    playerTier = Math.max(1, Math.min(22, Math.round(playerPower / 50)));
-    weaponLevel = Math.max(1, Math.min(5, Math.round((playerPower % 100) / 25) + 1));
+    playerTier = Math.max(1, Math.min(100, Math.round(playerPower / 50)));
+    weaponLevel = Math.max(1, Math.min(50, Math.round((playerPower % 100) / 25) + 1));
   } else {
     const ship = (typeof shipOrName === 'object' && shipOrName !== null ? shipOrName : {}) as ShipStats;
     playerPower = calculatePlayerPower(playerOrPower, ship);
@@ -270,15 +270,28 @@ export function createScaledEnemy(
   const factor = 0.70 + Math.random() * 0.45;
   const power = Math.round(playerPower * factor);
 
-  // 1. Determine Enemy Tier & Naval Category (scales with player's ship class)
-  const enemyTier = Math.max(1, Math.min(22, Math.round(playerTier * factor)));
+  // 1. Determine Enemy Tier & Naval Category (scales with player's ship class up to tier 100)
+  const enemyTier = Math.max(1, Math.min(100, Math.round(playerTier * factor)));
 
   let category: Enemy['category'] = 'SCOUT';
   let title = 'Outlaw Interceptor';
   let enemyScale = 1.0;
   let armorRating = 0; // % of direct laser fire absorbed
 
-  if (enemyTier >= 20) {
+  if (enemyTier >= 22) {
+    category = 'COLOSSUS';
+    const grandTitles = [
+      'Ouroboros Apex Flagship',
+      'Astral Leviathan Titan',
+      'Hyperion Celestial Colossus',
+      'Singularity World-Engine',
+      'Omega Void Dreadnought',
+      'Archon Star-Eater Flagship',
+    ];
+    title = grandTitles[(enemyTier + Math.floor(factor * 10)) % grandTitles.length];
+    enemyScale = Number((3.30 + (enemyTier - 22) * 0.045 + (factor - 0.7) * 0.5).toFixed(2));
+    armorRating = Math.min(0.65, 0.50 + (enemyTier - 22) * 0.003);
+  } else if (enemyTier >= 20) {
     category = 'COLOSSUS';
     title = factor > 1.08 ? 'Astral Leviathan Titan' : 'Ouroboros Apex Flagship';
     enemyScale = Number((3.30 + (factor - 0.7) * 0.5).toFixed(2));

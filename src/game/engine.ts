@@ -3,6 +3,105 @@ import { useGameStore, calculatePlayerPower } from '../store/useGameStore';
 import { SoundManager } from '../audio/SoundManager';
 import { logger } from './diagnosticLogger';
 
+export interface OrientedBox {
+  halfLength: number;
+  halfWidth: number;
+  forwardOffset: number;
+}
+
+export function getPlayerBoundingBox(tier: number, scale: number = 1.0): OrientedBox {
+  let hl = 22;
+  let hw = 14;
+  let fo = 2;
+  if (tier >= 22) {
+    hl = 86 + (tier - 22) * 0.7;
+    hw = 38 + (tier - 22) * 0.35;
+    fo = 12;
+  } else if (tier >= 18) {
+    hl = 74;
+    hw = 34;
+    fo = 10;
+  } else if (tier >= 14) {
+    hl = 60;
+    hw = 28;
+    fo = 8;
+  } else if (tier >= 10) {
+    hl = 46;
+    hw = 24;
+    fo = 6;
+  } else if (tier >= 7) {
+    hl = 34;
+    hw = 20;
+    fo = 4;
+  } else if (tier >= 4) {
+    hl = 26;
+    hw = 16;
+    fo = 3;
+  }
+  return {
+    halfLength: hl * scale,
+    halfWidth: hw * scale,
+    forwardOffset: fo * scale,
+  };
+}
+
+export function getEnemyBoundingBox(category: string, scale: number = 1.0): OrientedBox {
+  let hl = 16;
+  let hw = 12;
+  let fo = 0;
+  if (category === 'COLOSSUS') {
+    hl = 58;
+    hw = 30;
+    fo = 8;
+  } else if (category === 'CARRIER') {
+    hl = 50;
+    hw = 26;
+    fo = 6;
+  } else if (category === 'BATTLESHIP') {
+    hl = 44;
+    hw = 24;
+    fo = 4;
+  } else if (category === 'CRUISER') {
+    hl = 36;
+    hw = 21;
+    fo = 3;
+  } else if (category === 'FRIGATE') {
+    hl = 28;
+    hw = 17;
+    fo = 2;
+  } else if (category === 'CORVETTE') {
+    hl = 22;
+    hw = 14;
+    fo = 0;
+  }
+  return {
+    halfLength: hl * scale,
+    halfWidth: hw * scale,
+    forwardOffset: fo * scale,
+  };
+}
+
+export function isPointInOrientedBox(
+  px: number,
+  py: number,
+  cx: number,
+  cy: number,
+  rot: number,
+  box: OrientedBox,
+  margin: number = 0
+): boolean {
+  const dx = px - cx;
+  const dy = py - cy;
+  const cos = Math.cos(-rot);
+  const sin = Math.sin(-rot);
+  const localX = dx * cos - dy * sin;
+  const localY = dx * sin + dy * cos;
+  return (
+    Math.abs(localX - box.forwardOffset) <= box.halfLength + margin &&
+    Math.abs(localY) <= box.halfWidth + margin
+  );
+}
+
 export class GameEngine {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -385,18 +484,20 @@ export class GameEngine {
     // 0. Dynamic Camera Zoom Calculation based on Ship Class Progression
     // Zoom out to provide wide tactical combat visibility as starships and armada fleets grow
     const tier = ship.shipTier || 1;
-    if (tier >= 70) {
-      this.targetZoom = 0.35;
-    } else if (tier >= 40) {
-      this.targetZoom = 0.40;
+    if (tier >= 80) {
+      this.targetZoom = 0.28;
+    } else if (tier >= 50) {
+      this.targetZoom = 0.32;
+    } else if (tier >= 30) {
+      this.targetZoom = 0.38;
     } else if (tier >= 20) {
-      this.targetZoom = 0.46;
+      this.targetZoom = 0.44;
     } else if (tier >= 12) {
-      this.targetZoom = 0.58;
+      this.targetZoom = 0.54;
     } else if (tier >= 6) {
-      this.targetZoom = 0.72;
+      this.targetZoom = 0.68;
     } else if (tier >= 3) {
-      this.targetZoom = 0.85;
+      this.targetZoom = 0.82;
     } else {
       this.targetZoom = 0.95;
     }
@@ -487,7 +588,9 @@ export class GameEngine {
     // Asteroid & Hostile Ship Collision Detection & Elastic Rebound
     this.asteroidCollisionCooldown = Math.max(0, this.asteroidCollisionCooldown - dt);
     const playerTier = ship.shipTier || 1;
-    const playerHitRadius = Math.min(65, Math.max(22, 18 + Math.min(22, playerTier) * 1.5 + Math.max(0, playerTier - 22) * 0.25));
+    const playerScale = playerTier <= 22 ? 1.0 : Number((1.0 + (playerTier - 22) * 0.008).toFixed(2));
+    const pBox = getPlayerBoundingBox(playerTier, playerScale);
+    const playerHitRadius = Math.max(pBox.halfWidth, pBox.halfLength * 0.85);
 
     for (const ast of world.asteroids) {
       const distToAst = Math.hypot(newX - ast.x, newY - ast.y);
@@ -528,11 +631,13 @@ export class GameEngine {
       }
     }
 
-    // Physical Enemy Ship Collision Separation & Overlap Prevention
+    // Physical Enemy Ship Collision Separation & Overlap Prevention (Oriented Hull Box bounds)
     for (const enemy of world.enemies || []) {
       const distToEnemy = Math.hypot(newX - enemy.x, newY - enemy.y);
-      const enemyHitRadius = Math.max(26, 22 * (enemy.scale || 1.0));
-      const minDistance = playerHitRadius + enemyHitRadius;
+      const cat = enemy.category || (enemy.type === 'OUTLAW_BOSS' ? 'BATTLESHIP' : enemy.type === 'RAIDER_CORVETTE' ? 'CRUISER' : 'SCOUT');
+      const eBox = getEnemyBoundingBox(cat, enemy.scale || 1.0);
+      const enemyEffectiveRadius = Math.max(eBox.halfWidth, eBox.halfLength * 0.85);
+      const minDistance = playerHitRadius + enemyEffectiveRadius;
 
       if (distToEnemy < minDistance && distToEnemy > 0.0001) {
         const overlap = minDistance - distToEnemy;
@@ -540,10 +645,10 @@ export class GameEngine {
         const ny = (newY - enemy.y) / distToEnemy;
 
         // Immediately push apart to prevent overlapping
-        newX += nx * overlap * 0.55;
-        newY += ny * overlap * 0.55;
-        enemy.x -= nx * overlap * 0.55;
-        enemy.y -= ny * overlap * 0.55;
+        newX += nx * overlap * 0.6;
+        newY += ny * overlap * 0.6;
+        enemy.x -= nx * overlap * 0.6;
+        enemy.y -= ny * overlap * 0.6;
 
         // Elastic bounce
         const relVx = vx - enemy.vx;
@@ -557,7 +662,7 @@ export class GameEngine {
         }
 
         if (Math.random() < 0.25) {
-          this.spawnExplosionParticles(enemy.x + nx * enemyHitRadius, enemy.y + ny * enemyHitRadius, '#00F0FF', 6);
+          this.spawnExplosionParticles(enemy.x + nx * enemyEffectiveRadius, enemy.y + ny * enemyEffectiveRadius, '#00F0FF', 6);
         }
       }
     }
@@ -1213,16 +1318,17 @@ export class GameEngine {
         // A. Check hits on regular enemies
         const currentEnemies = useGameStore.getState().world.enemies;
         for (const enemy of currentEnemies) {
-          const dist = Math.hypot(proj.x - enemy.x, proj.y - enemy.y);
-          const enemyHitRadius = Math.max(28, 22 * (enemy.scale || 1.0));
-          const hitRadius = proj.type === 'TORPEDO' ? enemyHitRadius + 24 : enemyHitRadius;
-          if (dist < hitRadius) {
+          const cat = enemy.category || (enemy.type === 'OUTLAW_BOSS' ? 'BATTLESHIP' : enemy.type === 'RAIDER_CORVETTE' ? 'CRUISER' : 'SCOUT');
+          const eBox = getEnemyBoundingBox(cat, enemy.scale || 1.0);
+          const margin = proj.type === 'TORPEDO' ? 26 : (proj.radius || 4);
+
+          if (isPointInOrientedBox(proj.x, proj.y, enemy.x, enemy.y, enemy.rotation, eBox, margin)) {
             this.lastTargetedEnemyId = enemy.id;
             if (proj.type === 'TORPEDO') {
               // Massive Torpedo Blast AOE! (Explosive damage ignores armor)
               SoundManager.playExplosion();
               this.spawnExplosionParticles(proj.x, proj.y, '#FB923C', 32);
-              const BLAST_RADIUS = 120;
+              const BLAST_RADIUS = 130;
               for (const e of currentEnemies) {
                 const ed = Math.hypot(proj.x - e.x, proj.y - e.y);
                 if (ed < BLAST_RADIUS) {
@@ -1270,14 +1376,16 @@ export class GameEngine {
         const currentWorldEscorts = useGameStore.getState().world.escorts || [];
         for (const esc of currentWorldEscorts) {
           if (esc.owner !== 'ENEMY') continue;
-          const dist = Math.hypot(proj.x - esc.x, proj.y - esc.y);
-          const escRadius = esc.type === 'GUNSHIP' ? 20 : 16;
-          const hitRadius = proj.type === 'TORPEDO' ? escRadius + 24 : escRadius;
-          if (dist < hitRadius) {
+          const escHl = esc.type === 'RONIN_WARMASTER' ? 24 : esc.type === 'GUNSHIP' || esc.type === 'MISSILE_CRUISER' ? 18 : 14;
+          const escHw = esc.type === 'RONIN_WARMASTER' ? 18 : esc.type === 'GUNSHIP' || esc.type === 'SHIELD_PROJECTOR' ? 14 : 10;
+          const escBox: OrientedBox = { halfLength: escHl, halfWidth: escHw, forwardOffset: 0 };
+          const margin = proj.type === 'TORPEDO' ? 26 : (proj.radius || 4);
+
+          if (isPointInOrientedBox(proj.x, proj.y, esc.x, esc.y, esc.rotation, escBox, margin)) {
             if (proj.type === 'TORPEDO') {
               SoundManager.playExplosion();
               this.spawnExplosionParticles(proj.x, proj.y, '#FB923C', 32);
-              const BLAST_RADIUS = 120;
+              const BLAST_RADIUS = 130;
               for (const e of currentEnemies) {
                 const ed = Math.hypot(proj.x - e.x, proj.y - e.y);
                 if (ed < BLAST_RADIUS) {
@@ -1360,11 +1468,13 @@ export class GameEngine {
           }
         }
       } else if (proj.owner === 'ENEMY') {
-        // A. Check hits on player (scales with player ship tier and size!)
+        // A. Check hits on player (Oriented hull bounding box)
         const playerTier = ship.shipTier || 1;
-        const playerHitRadius = Math.max(26, 20 + playerTier * 2.5);
-        const dist = Math.hypot(proj.x - newX, proj.y - newY);
-        if (dist < playerHitRadius) {
+        const playerScale = playerTier <= 22 ? 1.0 : Number((1.0 + (playerTier - 22) * 0.008).toFixed(2));
+        const pBox = getPlayerBoundingBox(playerTier, playerScale);
+        const margin = proj.radius || 4;
+
+        if (isPointInOrientedBox(proj.x, proj.y, newX, newY, rot, pBox, margin)) {
           state.damagePlayer(proj.damage);
           proj.lifetime = 0;
           this.spawnExplosionParticles(proj.x, proj.y, '#FF3366', 12);
@@ -1372,9 +1482,11 @@ export class GameEngine {
           // B. Check hits on player escort fleet!
           const playerEscorts = (useGameStore.getState().world.escorts || []).filter((e) => e.owner === 'PLAYER');
           for (const esc of playerEscorts) {
-            const d = Math.hypot(proj.x - esc.x, proj.y - esc.y);
-            const escRadius = esc.type === 'GUNSHIP' ? 20 : 16;
-            if (d < escRadius) {
+            const escHl = esc.type === 'RONIN_WARMASTER' ? 24 : esc.type === 'GUNSHIP' || esc.type === 'MISSILE_CRUISER' ? 18 : 14;
+            const escHw = esc.type === 'RONIN_WARMASTER' ? 18 : esc.type === 'GUNSHIP' || esc.type === 'SHIELD_PROJECTOR' ? 14 : 10;
+            const escBox: OrientedBox = { halfLength: escHl, halfWidth: escHw, forwardOffset: 0 };
+
+            if (isPointInOrientedBox(proj.x, proj.y, esc.x, esc.y, esc.rotation, escBox, proj.radius || 4)) {
               const res = state.damageEscort(esc.id, proj.damage);
               if (res.destroyed) {
                 this.spawnExplosionParticles(esc.x, esc.y, '#34D399', 22);
@@ -3876,13 +3988,19 @@ export class GameEngine {
         ctx.fill();
       }
 
-      // Shield bubble if shielded
+      // Shield bubble if shielded (Rounded rectangular deflector barrier matching hull)
       if (enemy.shield > 0) {
-        const shieldR = category === 'COLOSSUS' ? 44 : category === 'BATTLESHIP' ? 38 : category === 'CRUISER' ? 32 : category === 'FRIGATE' ? 26 : 22;
-        ctx.strokeStyle = isStronger ? 'rgba(239, 68, 68, 0.55)' : 'rgba(251, 146, 60, 0.55)';
-        ctx.lineWidth = isStronger ? 2.5 : 1.8;
+        const eBox = getEnemyBoundingBox(category, 1.0);
+        const sL = eBox.halfLength + 6;
+        const sW = eBox.halfWidth + 6;
+        ctx.strokeStyle = isStronger ? 'rgba(239, 68, 68, 0.65)' : 'rgba(251, 146, 60, 0.65)';
+        ctx.lineWidth = isStronger ? 2.2 : 1.8;
         ctx.beginPath();
-        ctx.arc(0, 0, shieldR, 0, Math.PI * 2);
+        if (typeof ctx.roundRect === 'function') {
+          ctx.roundRect(-sL + eBox.forwardOffset, -sW, sL * 2, sW * 2, 10);
+        } else {
+          ctx.rect(-sL + eBox.forwardOffset, -sW, sL * 2, sW * 2);
+        }
         ctx.stroke();
       }
 
@@ -4810,7 +4928,6 @@ export class GameEngine {
 
     const wingDist = 12 + Math.min(tier * 1.2, 20);
     const podDist = 8 + Math.min(tier * 1.0, 16);
-    const shieldRadius = 26 + tier * 1.2;
     const exhaustBack = -12 - Math.min(tier * 0.8, 14);
 
     // Twin plasma gun barrels if upgraded
@@ -4885,14 +5002,26 @@ export class GameEngine {
       }
     }
 
-    // Active Shield Bubble
+    // Active Shield Barrier (Rounded rectangular deflector shield barrier matching flagship hull)
     if (ship.shield > 0) {
-      const shieldAlpha = Math.min(0.5, (ship.shield / ship.maxShield) * 0.4);
+      const pBox = getPlayerBoundingBox(tier, 1.0);
+      const shieldAlpha = Math.min(0.65, 0.2 + (ship.shield / ship.maxShield) * 0.35);
       ctx.strokeStyle = `rgba(0, 240, 255, ${shieldAlpha})`;
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 2.0;
+      const sL = pBox.halfLength + 8;
+      const sW = pBox.halfWidth + 8;
       ctx.beginPath();
-      ctx.arc(0, 0, shieldRadius, 0, Math.PI * 2);
+      if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(-sL + pBox.forwardOffset, -sW, sL * 2, sW * 2, 14);
+      } else {
+        ctx.rect(-sL + pBox.forwardOffset, -sW, sL * 2, sW * 2);
+      }
       ctx.stroke();
+
+      // Shield corner capacitor accents
+      ctx.strokeStyle = `rgba(56, 189, 248, ${shieldAlpha * 0.7})`;
+      ctx.lineWidth = 1.0;
+      ctx.strokeRect(-sL + pBox.forwardOffset + 2, -sW + 2, sL * 2 - 4, sW * 2 - 4);
     }
 
     ctx.restore();
