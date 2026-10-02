@@ -3,14 +3,16 @@ import { useGameStore } from '../../store/useGameStore';
 import { Zap, Shield, Flame, Crosshair } from 'lucide-react';
 
 export const PowerConsole: React.FC = () => {
-  const ship = useGameStore((state) => state.ship);
+  const enginePower = useGameStore((state) => state.ship.enginePower);
+  const shieldPower = useGameStore((state) => state.ship.shieldPower);
+  const weaponPower = useGameStore((state) => state.ship.weaponPower);
   const distributePower = useGameStore((state) => state.distributePower);
 
   const systems = [
     {
       id: 'engine' as const,
       name: 'ENGINES',
-      power: ship.enginePower,
+      power: enginePower,
       icon: Flame,
       color: 'text-amber-400',
       activeBg: 'bg-amber-400 shadow-glow-amber',
@@ -19,7 +21,7 @@ export const PowerConsole: React.FC = () => {
     {
       id: 'shield' as const,
       name: 'SHIELDS',
-      power: ship.shieldPower,
+      power: shieldPower,
       icon: Shield,
       color: 'text-cyan-400',
       activeBg: 'bg-cyan-400 shadow-glow-cyan',
@@ -28,7 +30,7 @@ export const PowerConsole: React.FC = () => {
     {
       id: 'weapon' as const,
       name: 'WEAPONS',
-      power: ship.weaponPower,
+      power: weaponPower,
       icon: Crosshair,
       color: 'text-rose-400',
       activeBg: 'bg-rose-400 shadow-glow-red',
@@ -36,7 +38,7 @@ export const PowerConsole: React.FC = () => {
     },
   ];
 
-  const totalUsed = ship.enginePower + ship.shieldPower + ship.weaponPower;
+  const totalUsed = enginePower + shieldPower + weaponPower;
 
   return (
     <div className="bg-slate-900/85 backdrop-blur-md border border-cyan-500/30 rounded-lg p-3 text-xs font-mono shadow-2xl pointer-events-auto select-none">

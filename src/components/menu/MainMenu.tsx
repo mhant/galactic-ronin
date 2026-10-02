@@ -1,58 +1,97 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../../store/useGameStore';
-import { Rocket, RotateCcw, HelpCircle, Volume2, VolumeX, Music } from 'lucide-react';
+import { GameMode } from '../../types/game';
+import { SaveSlotModal } from './SaveSlotModal';
+import {
+  HelpCircle,
+  Volume2,
+  VolumeX,
+  Music,
+  Award,
+  Sparkles,
+} from 'lucide-react';
 
 export const MainMenu: React.FC = () => {
   const [showControls, setShowControls] = useState(false);
-  const startGame = useGameStore((state) => state.startGame);
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [selectedMode, setSelectedMode] = useState<GameMode>('STORY');
+
   const musicEnabled = useGameStore((state) => state.musicEnabled);
   const sfxEnabled = useGameStore((state) => state.sfxEnabled);
   const toggleMusic = useGameStore((state) => state.toggleMusic);
   const toggleSFX = useGameStore((state) => state.toggleSFX);
 
+  const openSaveSlots = (mode: GameMode) => {
+    setSelectedMode(mode);
+    setSaveModalOpen(true);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-space-900/95 flex flex-col items-center justify-center p-6 select-none font-mono">
+    <div className="fixed inset-0 z-50 bg-space-900/95 flex flex-col items-center justify-center p-4 sm:p-6 select-none font-mono overflow-y-auto">
       {/* Background Animated Atmosphere */}
       <div className="absolute inset-0 crt-overlay opacity-60 pointer-events-none" />
 
-      <div className="relative z-10 max-w-lg w-full text-center space-y-8">
+      <div className="relative z-10 max-w-lg w-full text-center space-y-6 sm:space-y-8 my-auto py-6">
         {/* Title */}
         <div className="space-y-2">
-          <div className="inline-block px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-[11px] font-bold text-cyan-400 tracking-widest uppercase mb-2 shadow-glow-cyan">
-            Tactical Space Exploration & Trade
+          <div className="inline-block px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-[11px] font-bold text-cyan-400 tracking-widest uppercase mb-1 shadow-glow-cyan">
+            Tactical Space Exploration, Bounties & Trade
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-300 to-yellow-400 tracking-wider">
+          <h1 className="text-4xl sm:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-300 to-yellow-400 tracking-wider">
             GALACTIC RONIN
           </h1>
-          <h2 className="text-xl md:text-2xl font-bold text-slate-300 tracking-widest">
-            SPACE BOOGALOO
+          <h2 className="text-lg sm:text-2xl font-bold text-slate-300 tracking-widest">
+            OUTER-RIM CHRONICLES
           </h2>
-          <p className="text-xs text-slate-400 max-w-sm mx-auto pt-2">
-            Pilot a lone starfighter through treacherous outlaw sectors. Speculate on high-yield commodities, mine asteroid fields, and battle pirate raiders.
+          <p className="text-xs text-slate-400 max-w-sm mx-auto pt-1">
+            Play as an exiled space ronin. Take high-risk contracts, mine scarce minerals, upgrade up to Tier 100 star dreadnoughts, and command an invincible armada.
           </p>
         </div>
 
-        {/* Action Buttons */}
-        <div className="space-y-3 max-w-xs mx-auto">
+        {/* Mode Action Buttons */}
+        <div className="space-y-3 max-w-sm mx-auto">
+          {/* Story Campaign Button */}
           <button
-            onClick={() => startGame(false)}
-            className="w-full py-3.5 px-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-black text-sm tracking-wider transition-all duration-150 active:scale-95 shadow-glow-cyan flex items-center justify-center space-x-2"
+            onClick={() => openSaveSlots('STORY')}
+            className="w-full py-4 px-5 rounded-2xl bg-gradient-to-r from-cyan-500 to-teal-400 hover:from-cyan-400 hover:to-teal-300 text-slate-950 font-black text-sm tracking-wider transition-all duration-150 active:scale-95 shadow-2xl shadow-cyan-500/40 flex items-center justify-between cursor-pointer group"
           >
-            <Rocket className="w-4 h-4" />
-            <span>CONTINUE EXPEDITION</span>
+            <div className="flex items-center space-x-3">
+              <div className="p-2 rounded-xl bg-slate-950/20">
+                <Award className="w-5 h-5 text-slate-950 group-hover:scale-110 transition-transform" />
+              </div>
+              <div className="text-left">
+                <div className="text-sm font-black text-slate-950">STORY CAMPAIGN</div>
+                <div className="text-[10px] text-slate-800 font-bold">Courier Contracts, Bounties & Lore</div>
+              </div>
+            </div>
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-950 text-cyan-300 font-bold">
+              3 SLOTS
+            </span>
           </button>
 
+          {/* Free Play Sandbox Button */}
           <button
-            onClick={() => startGame(true)}
-            className="w-full py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs tracking-wider border border-slate-700 transition-all duration-150 active:scale-95 flex items-center justify-center space-x-2"
+            onClick={() => openSaveSlots('FREE_PLAY')}
+            className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-sm tracking-wider transition-all duration-150 active:scale-95 shadow-2xl shadow-purple-600/30 flex items-center justify-between cursor-pointer group"
           >
-            <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-            <span>NEW GAME (RESET ALL)</span>
+            <div className="flex items-center space-x-3">
+              <div className="p-2 rounded-xl bg-white/10">
+                <Sparkles className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+              </div>
+              <div className="text-left">
+                <div className="text-sm font-black text-white">FREE PLAY SANDBOX</div>
+                <div className="text-[10px] text-purple-200 font-bold">Unrestricted Exploration & Battles</div>
+              </div>
+            </div>
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-950 text-purple-300 font-bold border border-purple-400/40">
+              3 SLOTS
+            </span>
           </button>
 
+          {/* Controls Overview Button */}
           <button
             onClick={() => setShowControls(!showControls)}
-            className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs border border-slate-800 transition-all duration-150 active:scale-95 flex items-center justify-center space-x-2"
+            className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs border border-slate-800 transition-all duration-150 active:scale-95 flex items-center justify-center space-x-2 cursor-pointer"
           >
             <HelpCircle className="w-3.5 h-3.5 text-cyan-400" />
             <span>{showControls ? 'HIDE FLIGHT MANUAL' : 'HOW TO PLAY & CONTROLS'}</span>
@@ -61,32 +100,36 @@ export const MainMenu: React.FC = () => {
 
         {/* Controls Modal / Drawer */}
         {showControls && (
-          <div className="bg-slate-950/90 border border-cyan-500/30 rounded-xl p-5 text-left text-xs text-slate-300 space-y-3 shadow-2xl animate-fadeIn">
-            <h3 className="font-bold text-cyan-400 text-sm border-b border-cyan-950 pb-1">
-              FLIGHT MANUAL & TACTICAL PROTOCOLS
+          <div className="bg-slate-950/90 border border-cyan-500/30 rounded-xl p-4 sm:p-5 text-left text-xs text-slate-300 space-y-3 shadow-2xl animate-fade-in max-w-md mx-auto">
+            <h3 className="font-bold text-cyan-400 text-sm border-b border-cyan-950 pb-1 flex items-center justify-between">
+              <span>FLIGHT MANUAL & CONTROLS</span>
+              <span className="text-[10px] text-slate-400">Desktop & Mobile Ready</span>
             </h3>
             <div className="grid grid-cols-2 gap-2 text-[11px]">
               <div><span className="text-cyan-300 font-bold">W / Up Arrow:</span> Main Thruster</div>
               <div><span className="text-cyan-300 font-bold">A / D / Left / Right:</span> Turn Ship</div>
-              <div><span className="text-cyan-300 font-bold">S / Down Arrow:</span> Retro Dampener</div>
-              <div><span className="text-cyan-300 font-bold">Spacebar:</span> Plasma Cannon</div>
-              <div><span className="text-cyan-300 font-bold">Click / M:</span> Mining Laser</div>
+              <div><span className="text-amber-300 font-bold">S / Down Arrow:</span> Reverse Thruster</div>
+              <div><span className="text-cyan-300 font-bold">Spacebar:</span> Plasma Cannons</div>
+              <div><span className="text-yellow-300 font-bold">Click / M:</span> Rapid Mining Laser</div>
+              <div><span className="text-amber-300 font-bold">F / Right-Click:</span> Fire Torpedo</div>
+              <div><span className="text-purple-300 font-bold">Q Key:</span> EMP Shockwave</div>
+              <div><span className="text-emerald-300 font-bold">R Key:</span> Launch Recon Drone</div>
+              <div><span className="text-purple-300 font-bold">T Key:</span> Toggle Armada Stance</div>
               <div><span className="text-cyan-300 font-bold">E Key:</span> Dock with Station</div>
             </div>
 
             <div className="pt-2 border-t border-slate-900 text-[11px] text-slate-400 space-y-1">
-              <p><strong className="text-yellow-400">Trade:</strong> Buy low at producer stations (e.g. food at Agricultural, ore at Mining) and sell high at consumer hubs.</p>
-              <p><strong className="text-cyan-400">Mining:</strong> Fire your mining laser at asteroids to extract valuable minerals and fuel cells into floating cargo.</p>
-              <p><strong className="text-rose-400">Power Routing:</strong> Reroute your reactor between Engines, Shields, and Weapons to adapt to combat situations on the fly.</p>
+              <p><strong className="text-amber-400">📜 Station Contracts:</strong> Dock at stations to accept Courier, Bounty Hunt, and Deep Mining missions.</p>
+              <p><strong className="text-cyan-400">🚀 Tier 100 Progression:</strong> Upgrade your chassis and build an armada of up to 30 escort warships.</p>
             </div>
           </div>
         )}
 
         {/* Audio Toggles */}
-        <div className="flex items-center justify-center space-x-6 text-xs text-slate-400">
+        <div className="flex items-center justify-center space-x-6 text-xs text-slate-400 pt-2 border-t border-slate-900">
           <button
             onClick={toggleMusic}
-            className="flex items-center space-x-1.5 hover:text-purple-300 transition-colors"
+            className="flex items-center space-x-1.5 hover:text-purple-300 transition-colors cursor-pointer"
           >
             <Music className={`w-4 h-4 ${musicEnabled ? 'text-purple-400' : 'text-slate-600'}`} />
             <span>Music: <strong className={musicEnabled ? 'text-purple-300' : 'text-slate-500'}>{musicEnabled ? 'ON' : 'OFF'}</strong></span>
@@ -94,7 +137,7 @@ export const MainMenu: React.FC = () => {
 
           <button
             onClick={toggleSFX}
-            className="flex items-center space-x-1.5 hover:text-cyan-300 transition-colors"
+            className="flex items-center space-x-1.5 hover:text-cyan-300 transition-colors cursor-pointer"
           >
             {sfxEnabled ? (
               <Volume2 className="w-4 h-4 text-cyan-400" />
@@ -105,6 +148,13 @@ export const MainMenu: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Save Slot Picker Modal */}
+      <SaveSlotModal
+        isOpen={saveModalOpen}
+        onClose={() => setSaveModalOpen(false)}
+        defaultMode={selectedMode}
+      />
     </div>
   );
 };

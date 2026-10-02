@@ -1,0 +1,96 @@
+import { SectorTheme, SectorThemeId } from '../types/game';
+
+export const SECTOR_THEMES: Record<SectorThemeId, SectorTheme> = {
+  CRIMSON_OUTLAW_RIFT: {
+    id: 'CRIMSON_OUTLAW_RIFT',
+    name: 'Crimson Outlaw Rift',
+    tagline: 'High-threat pirate territory plagued by electromagnetic red-shift storms.',
+    primaryColor: '#EF4444',
+    secondaryColor: '#F97316',
+    nebulaColors: ['rgba(239, 68, 68, 0.18)', 'rgba(249, 115, 22, 0.14)', 'rgba(153, 27, 27, 0.22)'],
+    starColors: ['#FCA5A5', '#FDBA74', '#FEE2E2', '#FFFFFF'],
+    ambientColor: 'rgba(239, 68, 68, 0.08)',
+    stationAccent: '#DC2626',
+    dangerLevel: 4,
+    hostilityRating: 'HIGH',
+  },
+  EMERALD_ION_STORM: {
+    id: 'EMERALD_ION_STORM',
+    name: 'Emerald Ion Expanse',
+    tagline: 'Rich vegetative orbital corridors and high-yield plasma fusion asteroid fields.',
+    primaryColor: '#10B981',
+    secondaryColor: '#06B6D4',
+    nebulaColors: ['rgba(16, 185, 129, 0.18)', 'rgba(6, 182, 212, 0.14)', 'rgba(4, 120, 87, 0.20)'],
+    starColors: ['#6EE7B7', '#67E8F9', '#D1FAE5', '#FFFFFF'],
+    ambientColor: 'rgba(16, 185, 129, 0.06)',
+    stationAccent: '#059669',
+    dangerLevel: 2,
+    hostilityRating: 'MEDIUM',
+  },
+  AMETHYST_VOID_WEB: {
+    id: 'AMETHYST_VOID_WEB',
+    name: 'Amethyst Void Web',
+    tagline: 'Enigmatic quantum rift filled with exotic matter and black-market telemetry.',
+    primaryColor: '#A855F7',
+    secondaryColor: '#EC4899',
+    nebulaColors: ['rgba(168, 85, 247, 0.20)', 'rgba(236, 72, 153, 0.14)', 'rgba(107, 33, 168, 0.22)'],
+    starColors: ['#D8B4FE', '#F472B6', '#F3E8FF', '#FFFFFF'],
+    ambientColor: 'rgba(168, 85, 247, 0.07)',
+    stationAccent: '#9333EA',
+    dangerLevel: 3,
+    hostilityRating: 'MEDIUM',
+  },
+  SOLAR_CORONA_FOUNDRY: {
+    id: 'SOLAR_CORONA_FOUNDRY',
+    name: 'Solar Corona Foundry',
+    tagline: 'Superheated industrial foundry sector illuminated by blinding stellar flares.',
+    primaryColor: '#F59E0B',
+    secondaryColor: '#EAB308',
+    nebulaColors: ['rgba(245, 158, 11, 0.18)', 'rgba(234, 179, 8, 0.15)', 'rgba(180, 83, 9, 0.22)'],
+    starColors: ['#FDE68A', '#FEF08A', '#FFFBEB', '#FFFFFF'],
+    ambientColor: 'rgba(245, 158, 11, 0.07)',
+    stationAccent: '#D97706',
+    dangerLevel: 2,
+    hostilityRating: 'LOW',
+  },
+  DEEP_COBALT_EXPANSE: {
+    id: 'DEEP_COBALT_EXPANSE',
+    name: 'Deep Cobalt Expanse',
+    tagline: 'Pristine central trade sector guarded by planetary defense forces.',
+    primaryColor: '#00F0FF',
+    secondaryColor: '#3B82F6',
+    nebulaColors: ['rgba(0, 240, 255, 0.15)', 'rgba(59, 130, 246, 0.14)', 'rgba(29, 78, 216, 0.20)'],
+    starColors: ['#BAE6FD', '#BFDBFE', '#E0F2FE', '#FFFFFF'],
+    ambientColor: 'rgba(0, 240, 255, 0.05)',
+    stationAccent: '#0284C7',
+    dangerLevel: 1,
+    hostilityRating: 'LOW',
+  },
+  DARK_MATTER_ABYSS: {
+    id: 'DARK_MATTER_ABYSS',
+    name: 'Dark Matter Abyss',
+    tagline: 'Relativistic event horizon zone dominated by dreadnought pirate fleets.',
+    primaryColor: '#E11D48',
+    secondaryColor: '#7C3AED',
+    nebulaColors: ['rgba(225, 29, 72, 0.22)', 'rgba(124, 58, 237, 0.18)', 'rgba(15, 23, 42, 0.6)'],
+    starColors: ['#FDA4AF', '#C4B5FD', '#FFE4E6', '#FFFFFF'],
+    ambientColor: 'rgba(225, 29, 72, 0.10)',
+    stationAccent: '#BE123C',
+    dangerLevel: 5,
+    hostilityRating: 'EXTREME',
+  },
+};
+
+const THEME_IDS: SectorThemeId[] = [
+  'DEEP_COBALT_EXPANSE',
+  'EMERALD_ION_STORM',
+  'SOLAR_CORONA_FOUNDRY',
+  'AMETHYST_VOID_WEB',
+  'CRIMSON_OUTLAW_RIFT',
+  'DARK_MATTER_ABYSS',
+];
+
+export function getSectorTheme(sectorIndex: number): SectorTheme {
+  const index = Math.abs(sectorIndex) % THEME_IDS.length;
+  return SECTOR_THEMES[THEME_IDS[index]];
+}

@@ -56,6 +56,122 @@ export interface Asteroid {
   vertices: AsteroidVertex[];
 }
 
+export type EscortType =
+  | 'FIGHTER'
+  | 'GUNSHIP'
+  | 'FRIGATE'
+  | 'DESTROYER'
+  | 'BATTLECRUISER'
+  | 'DREADNOUGHT'
+  | 'CARRIER'
+  | 'SOVEREIGN'
+  | 'VOID_WEAVER'
+  | 'RONIN_WARMASTER';
+
+export type EscortStance = 'ATTACK' | 'DEFEND';
+
+export interface EscortClassDefinition {
+  type: EscortType;
+  name: string;
+  minShipTier: number;
+  cost: number;
+  hull: number;
+  shield: number;
+  fireCooldown: number;
+  damage: number;
+  color: string;
+  description: string;
+  perks: string;
+}
+
+export interface EscortShip {
+  id: string;
+  name: string;
+  type: EscortType;
+  owner: 'PLAYER' | 'ENEMY';
+  leaderId?: string; // If enemy, id of the parent enemy ship
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  rotation: number;
+  hull: number;
+  maxHull: number;
+  shield: number;
+  maxShield: number;
+  fireCooldown: number;
+  formationAngle: number;
+  formationDist: number;
+  targetEnemyId?: string | null;
+  stunDuration?: number;
+}
+
+export type GameMode = 'STORY' | 'FREE_PLAY';
+
+export type MissionType =
+  | 'COURIER_CARGO'
+  | 'VIP_TRANSPORT'
+  | 'BOUNTY_HUNT'
+  | 'MINERAL_EXTRACTION'
+  | 'CONVOY_ESCORT';
+
+export interface MissionReward {
+  credits: number;
+  freeUpgrade?: 'WEAPON' | 'SHIELD' | 'ENGINE' | 'CARGO';
+  minerals?: { id: string; quantity: number };
+  hullBonus?: number;
+}
+
+export interface Mission {
+  id: string;
+  type: MissionType;
+  title: string;
+  client: string;
+  sourceStationId: string;
+  sourceStationName: string;
+  targetStationId?: string;
+  targetStationName?: string;
+  targetCoords?: { x: number; y: number };
+  requiredMineralId?: string;
+  requiredMineralName?: string;
+  requiredMineralQty?: number;
+  targetEnemyName?: string;
+  targetEnemyCategory?: string;
+  targetEnemyId?: string;
+  targetEnemiesKilled?: number;
+  targetEnemiesRequired?: number;
+  reward: MissionReward;
+  description: string;
+  dangerLevel: number;
+  status: 'AVAILABLE' | 'ACTIVE' | 'COMPLETED' | 'FAILED';
+  penaltyCredits: number;
+}
+
+export interface StoryChapter {
+  id: string;
+  chapterNumber: number;
+  title: string;
+  subtitle: string;
+  triggerType: 'PROLOGUE' | 'MISSION_MILESTONE' | 'CHASSIS_UPGRADE' | 'WEAPON_UPGRADE' | 'CUSTOM';
+  triggerBadge: string;
+  loreText: string[];
+  quote: string;
+  illustrationIcon: 'SWORD' | 'SHIP' | 'ARMADA' | 'STATION' | 'NEBULA' | 'TITAN' | 'CHRONICLE';
+}
+
+export interface SaveSlotData {
+  slotIndex: number;
+  mode: GameMode;
+  timestamp: number;
+  player: PlayerStats;
+  ship: ShipStats;
+  currentSectorId: string;
+  activeMission: Mission | null;
+  completedMissionsCount: number;
+  storyProgress: number; // 0 to 100
+  unlockedStoryChapterIds?: string[];
+}
+
 export interface Enemy {
   id: string;
   name: string;
@@ -72,11 +188,33 @@ export interface Enemy {
   bounty: number;
   fireCooldown: number;
   aggroDistance: number;
+  power?: number;
+  scale?: number;
+  tier?: number;
+  category?: 'SCOUT' | 'CORVETTE' | 'FRIGATE' | 'CRUISER' | 'BATTLESHIP' | 'CARRIER' | 'COLOSSUS';
+  armorRating?: number;
+  escorts?: EscortShip[];
+  hasBeamWeapon?: boolean;
+  beamTargetId?: string | null;
+  stunDuration?: number;
+}
+
+export interface ShipClassDefinition {
+  tier: number;
+  name: string;
+  category: 'SCOUT' | 'CORVETTE' | 'FRIGATE' | 'CRUISER' | 'BATTLESHIP' | 'CARRIER' | 'COLOSSUS';
+  cost: number;
+  cargoBonus: number;
+  hullBonus: number;
+  fuelBonus: number;
+  description: string;
+  unlockedPerks?: string[];
 }
 
 export interface Projectile {
   id: string;
   owner: 'PLAYER' | 'ENEMY';
+  type?: 'LASER' | 'TORPEDO' | 'EMP' | 'FLAK';
   x: number;
   y: number;
   vx: number;
@@ -84,7 +222,12 @@ export interface Projectile {
   damage: number;
   lifetime: number;
   color: string;
+  radius?: number;
+  targetEnemyId?: string;
+  trailColor?: string;
 }
+
+export type LootType = 'CARGO' | 'CREDITS' | 'MISSILES' | 'FUEL' | 'REPAIR';
 
 export interface FloatingLoot {
   id: string;
@@ -94,6 +237,11 @@ export interface FloatingLoot {
   vy: number;
   item: InventoryItem;
   lifetime: number;
+  lootType?: LootType;
+  creditsValue?: number;
+  missilesCount?: number;
+  fuelAmount?: number;
+  repairAmount?: number;
 }
 
 export interface Particle {
@@ -135,6 +283,55 @@ export interface ShipStats {
   maxShield: number;
   isThrusting: boolean;
   isMining: boolean;
+
+  // Secondary & Heavy Weapon Systems
+  hasTorpedoLauncher: boolean;
+  torpedoes: number;
+  maxTorpedoes: number;
+  hasEmpGenerator: boolean;
+  empCooldown: number;
+  maxEmpCooldown: number;
+  hasAutoTurrets: boolean;
+  turretCooldown: number;
+
+  // Recon Scout Drone System
+  drones: number;
+  maxDrones: number;
+  droneCooldown: number;
+
+  // Auto-Targeting Beam Weapon System
+  hasBeamWeapon: boolean;
+  beamTargetId: string | null;
+
+  // Escort Armada Fleet System
+  armadaStance: EscortStance;
+  escorts: EscortShip[];
+  maxEscorts: number;
+}
+
+export type SectorThemeId =
+  | 'CRIMSON_OUTLAW_RIFT'
+  | 'EMERALD_ION_STORM'
+  | 'AMETHYST_VOID_WEB'
+  | 'SOLAR_CORONA_FOUNDRY'
+  | 'DEEP_COBALT_EXPANSE'
+  | 'DARK_MATTER_ABYSS';
+
+export interface SectorTheme {
+  id: SectorThemeId;
+  name: string;
+  tagline: string;
+  primaryColor: string;
+  secondaryColor: string;
+  nebulaColors: string[];
+  starColors: string[];
+  ambientColor: string;
+  stationAccent: string;
+  dangerLevel: number;
+  hostilityRating: 'LOW' | 'MEDIUM' | 'HIGH' | 'EXTREME';
+  backgroundColor?: string;
+  starTint?: string;
+  ambientDustAlpha?: number;
 }
 
 export interface Sector {
@@ -143,6 +340,43 @@ export interface Sector {
   dangerLevel: number;
   width: number;
   height: number;
+  theme: SectorTheme;
+}
+
+export interface DefenseDrone {
+  id: string;
+  orbitAngle: number;
+  orbitRadius: number;
+  orbitSpeed: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  rotation: number;
+  fireCooldown: number;
+  lifetime: number;
+  maxLifetime: number;
+  shield?: number;
+  maxShield?: number;
+}
+
+export type ReconDrone = DefenseDrone;
+
+export interface PointOfInterest {
+  id: string;
+  title: string;
+  name?: string;
+  category: 'ASTEROID_CLUSTER' | 'STATION' | 'HOSTILE_FLEET' | 'DERELICT_CACHE' | 'FUSION_ASTEROID' | 'ANOMALY';
+  type?: 'ASTEROID_CLUSTER' | 'STATION' | 'HOSTILE_FLEET' | 'DERELICT_CACHE' | 'FUSION_ASTEROID' | 'ANOMALY';
+  x: number;
+  y: number;
+  description: string;
+  color: string;
+  lifetime: number;
+  maxLifetime: number;
+  detectedBy?: 'DRONE' | 'LONG_RANGE_RADAR';
+  distance?: number;
+  timestamp?: number;
 }
 
 export interface GameState {
@@ -156,6 +390,10 @@ export interface GameState {
     enemies: Enemy[];
     projectiles: Projectile[];
     floatingLoot: FloatingLoot[];
+    drones: ReconDrone[];
+    escorts: EscortShip[];
+    pointsOfInterest: PointOfInterest[];
+    exploredCells: string[];
   };
   market: {
     activeStationId: string | null;
@@ -166,4 +404,18 @@ export interface GameState {
   musicEnabled: boolean;
   sfxEnabled: boolean;
   combatAlert: boolean;
+  isHyperJumping: boolean;
+  hyperJumpProgress: number; // 0 to 1
+  invertFlightControls: boolean;
+  isPaused: boolean;
+  isDiagnosticsOpen: boolean;
+  touchControlsMode: 'AUTO' | 'ON' | 'OFF';
+  mode: GameMode;
+  saveSlotIndex: number;
+  activeMission: Mission | null;
+  stationMissions: Mission[];
+  completedMissionsCount: number;
+  isIntroNuxOpen: boolean;
+  activeStorybookChapter: StoryChapter | null;
+  unlockedStoryChapterIds: string[];
 }
