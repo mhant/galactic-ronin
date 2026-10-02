@@ -30,14 +30,14 @@ import { SHIP_CLASSES, getShipClass, getEscortClass, getMaxEscortsForTier, getMa
 export const getDifficultyMultipliers = (difficulty: GameDifficulty = 'EASY') => {
   switch (difficulty) {
     case 'NORMAL':
-      // +50% harder than easy
-      return { hpMult: 1.0, dmgMult: 1.0, bountyMult: 1.25 };
+      // Solid combat challenge: +105% HP, +90% firepower compared to Easy
+      return { hpMult: 1.35, dmgMult: 1.25, bountyMult: 1.4 };
     case 'HARD':
-      // +100% harder than easy
-      return { hpMult: 1.4, dmgMult: 1.4, bountyMult: 1.6 };
+      // Intense veteran combat: +220% HP, +185% firepower compared to Easy
+      return { hpMult: 2.10, dmgMult: 1.85, bountyMult: 1.9 };
     case 'EXTREME':
-      // +200% harder than easy
-      return { hpMult: 2.0, dmgMult: 1.8, bountyMult: 2.2 };
+      // Hardcore survival: +420% HP, +300% firepower compared to Easy
+      return { hpMult: 3.40, dmgMult: 2.60, bountyMult: 2.8 };
     case 'EASY':
     default:
       // Relaxed & approachable Easy mode (quicker kills, lower enemy damage)
