@@ -106,7 +106,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     hullBonus: 110,
     fuelBonus: 60,
     description: 'Triple-prow trident dreadnought with recessed torpedo missile launch tubes.',
-    unlockedPerks: ['Expands Torpedo Capacity to 15', 'Escort Wing Hangar (Max 4 Escorts)'],
+    unlockedPerks: ['Escort Wing Hangar (Max 4 Escorts)', 'Expanded Torpedo Magazine'],
   },
   {
     tier: 11,
@@ -149,7 +149,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     hullBonus: 210,
     fuelBonus: 100,
     description: 'Monolithic stepped obsidian dagger hull with glowing plasma channels.',
-    unlockedPerks: ['Expands Torpedo Capacity to 25', 'Reduced EMP Cooldown (5s)'],
+    unlockedPerks: ['Reduced EMP Cooldown (5s)', 'High-Capacity Torpedo Magazine'],
   },
   {
     tier: 15,
@@ -170,7 +170,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     hullBonus: 300,
     fuelBonus: 150,
     description: 'The pinnacle of naval engineering: dual ring resonance arrays and supreme firepower.',
-    unlockedPerks: ['Max Torpedoes 30', 'Colossus Overcharge Shield Matrix', 'Colossus Apex Armada (Max 8 Escorts)'],
+    unlockedPerks: ['Colossus Overcharge Shield Matrix', 'Colossus Apex Armada (Max 8 Escorts)'],
   },
   {
     tier: 17,
@@ -181,7 +181,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     hullBonus: 360,
     fuelBonus: 180,
     description: 'Elongated capital carrier featuring dual angled runway flight decks, runway arrestor lights, and dedicated fighter launch bays.',
-    unlockedPerks: ['Fleet Carrier Strike Wing (Max 10 Escorts)', 'Expanded Torpedo Bay (35 Torpedoes)'],
+    unlockedPerks: ['Fleet Carrier Strike Wing (Max 10 Escorts)', 'Expanded Torpedo Flight Bay'],
   },
   {
     tier: 18,
@@ -203,7 +203,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     hullBonus: 520,
     fuelBonus: 250,
     description: 'Heavy elongated warship hybrid with armored ram prow, spinal torpedo magazine, and dual lateral hangar decks.',
-    unlockedPerks: ['Dread-Carrier Armada (Max 14 Escorts)', 'Max Torpedoes 40'],
+    unlockedPerks: ['Dread-Carrier Armada (Max 14 Escorts)', 'Spinal Heavy Torpedo Bay'],
   },
   {
     tier: 20,
@@ -236,7 +236,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     hullBonus: 900,
     fuelBonus: 450,
     description: 'The ultimate apex naval starship in known space. An elongated cosmic supercarrier commanding an unstoppable armada.',
-    unlockedPerks: ['Infinity Apex Armada (Max 20 Escorts)', 'Max Torpedoes 50', 'Supreme Command Spire Matrix'],
+    unlockedPerks: ['Infinity Apex Armada (Max 20 Escorts)', 'Supreme Command Spire Matrix'],
   },
 ];
 
@@ -300,6 +300,12 @@ export const SHIP_CLASSES: ShipClassDefinition[] = generateFullShipClassCatalog(
 export function getShipClass(tier: number): ShipClassDefinition {
   const index = Math.max(1, Math.min(SHIP_CLASSES.length, Math.round(tier))) - 1;
   return SHIP_CLASSES[index] || SHIP_CLASSES[0];
+}
+
+export function getMaxTorpedoesForTier(tier: number): number {
+  if (tier < 2) return 5;
+  // Starting at Tier 2 (base 5), +20% each tier compounded
+  return Math.max(5, Math.round(5 * Math.pow(1.20, tier - 2)));
 }
 
 export function getMaxEscortsForTier(tier: number): number {

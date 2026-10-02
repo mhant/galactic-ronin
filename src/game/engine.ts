@@ -571,7 +571,7 @@ export class GameEngine {
     const weaponLvl = ship.weaponLevel || 1;
     const thrustMultiplier = (0.6 + ship.enginePower * 0.25) * (1 + (engineLvl - 1) * 0.15);
     const turnSpeed = (2.5 + ship.enginePower * 0.35) * (1 + (engineLvl - 1) * 0.12);
-    const fireCooldownRate = Math.max(0.12, (0.34 - ship.weaponPower * 0.04) * (1 - (weaponLvl - 1) * 0.08));
+    const fireCooldownRate = Math.max(0.10, (0.34 - ship.weaponPower * 0.04) * (1 - Math.min(0.60, (weaponLvl - 1) * 0.02)));
     // Supercharged player laser damage:
     // Base 45 + 12 per power bar, scaled by weapon level. Deals 70-130 damage per shot!
     const weaponDamage = (45 + ship.weaponPower * 12) * (1 + (weaponLvl - 1) * 0.25);
@@ -808,29 +808,48 @@ export class GameEngine {
 
         const perpAngle = fireAngle + Math.PI / 2;
 
-        // Multi-Tier Laser Cannon Configurations (Levels 1 to 50+)
-        // Distinct visual beam colors, varied widths, speeds, and multi-cannon layouts
-        const baseSpeed = 860;
+        // Multi-Tier Laser Cannon System (Infinite progression with resetting 1x-4x cannons per color tier)
+        const LASER_TIER_PALETTES = [
+          { color: '#00F0FF', trail: '#38BDF8' }, // Cyan Pulse
+          { color: '#FBBF24', trail: '#F59E0B' }, // Solar Gold
+          { color: '#10B981', trail: '#34D399' }, // Neon Emerald
+          { color: '#EF4444', trail: '#F87171' }, // Crimson Plasma
+          { color: '#A855F7', trail: '#C084FC' }, // Royal Violet
+          { color: '#F8FAFC', trail: '#E0F2FE' }, // Diamond White
+          { color: '#06B6D4', trail: '#22D3EE' }, // Chrono-Teal
+          { color: '#6366F1', trail: '#818CF8' }, // Indigo Void
+          { color: '#EC4899', trail: '#F472B6' }, // Cyber Rose
+          { color: '#F97316', trail: '#FB923C' }, // Solar Flare
+          { color: '#FDE047', trail: '#FEF08A' }, // Celestial Starlight
+          { color: '#2DD4BF', trail: '#5EEAD4' }, // Void-Weaver
+        ];
 
-        if (weaponLvl === 1) {
-          // MK-1: Cyan Pulse Needle
+        const tierIdx = Math.floor((weaponLvl - 1) / 4);
+        const stage = (weaponLvl - 1) % 4; // 0: Single [1x], 1: Twin [2x], 2: Triple [3x], 3: Quad [4x]
+        const palette = LASER_TIER_PALETTES[tierIdx % LASER_TIER_PALETTES.length];
+        const tierBonusSpeed = Math.min(180, tierIdx * 14);
+        const baseSpeed = 860 + tierBonusSpeed;
+        const baseRadius = 2.2 + Math.min(2.5, tierIdx * 0.15);
+
+        if (stage === 0) {
+          // Stage 0: Single Concentrated Heavy Lance [1x]
           state.addProjectile({
             id: `p_player_${Date.now()}_${Math.random()}`,
             owner: 'PLAYER',
             type: 'LASER',
-            x: newX + Math.cos(fireAngle) * 22,
-            y: newY + Math.sin(fireAngle) * 22,
-            vx: vx + Math.cos(fireAngle) * baseSpeed,
-            vy: vy + Math.sin(fireAngle) * baseSpeed,
+            x: newX + Math.cos(fireAngle) * 24,
+            y: newY + Math.sin(fireAngle) * 24,
+            vx: vx + Math.cos(fireAngle) * (baseSpeed + 20),
+            vy: vy + Math.sin(fireAngle) * (baseSpeed + 20),
             damage: weaponDamage,
-            lifetime: 1.8,
-            color: '#00F0FF',
-            radius: 1.8,
+            lifetime: 2.0,
+            color: palette.color,
+            radius: baseRadius + 1.2,
           });
-        } else if (weaponLvl === 2) {
-          // MK-2: Twin Azure Wing Cannons
-          const offset = 11;
-          const dmgPerBolt = weaponDamage * 0.58;
+        } else if (stage === 1) {
+          // Stage 1: Twin Wing Cannons [2x]
+          const offset = 12;
+          const dmgPerBolt = (weaponDamage / 2) * 1.05;
           [-offset, offset].forEach((off) => {
             state.addProjectile({
               id: `p_player_${Date.now()}_${Math.random()}`,
@@ -838,323 +857,67 @@ export class GameEngine {
               type: 'LASER',
               x: newX + Math.cos(fireAngle) * 18 + Math.cos(perpAngle) * off,
               y: newY + Math.sin(fireAngle) * 18 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle) * (baseSpeed + 20),
-              vy: vy + Math.sin(fireAngle) * (baseSpeed + 20),
+              vx: vx + Math.cos(fireAngle) * baseSpeed,
+              vy: vy + Math.sin(fireAngle) * baseSpeed,
               damage: dmgPerBolt,
-              lifetime: 1.8,
-              color: '#38BDF8',
-              radius: 2.2,
+              lifetime: 2.0,
+              color: palette.color,
+              radius: baseRadius + 0.4,
             });
           });
-        } else if (weaponLvl === 3) {
-          // MK-3: Triple Violet Hyper-Trident
-          const dmgPerBolt = weaponDamage * 0.44;
+        } else if (stage === 2) {
+          // Stage 2: Triple Trident Battery [3x]
+          const dmgPerBolt = (weaponDamage / 3) * 1.10;
+          // Center Lance
           state.addProjectile({
-            id: `p_player_${Date.now()}_${Math.random()}`,
+            id: `p_player_${Date.now()}_0_${Math.random()}`,
             owner: 'PLAYER',
             type: 'LASER',
             x: newX + Math.cos(fireAngle) * 22,
             y: newY + Math.sin(fireAngle) * 22,
-            vx: vx + Math.cos(fireAngle) * (baseSpeed + 30),
-            vy: vy + Math.sin(fireAngle) * (baseSpeed + 30),
+            vx: vx + Math.cos(fireAngle) * (baseSpeed + 25),
+            vy: vy + Math.sin(fireAngle) * (baseSpeed + 25),
             damage: dmgPerBolt * 1.15,
-            lifetime: 1.8,
-            color: '#C084FC',
-            radius: 2.5,
-          });
-          [-14, 14].forEach((off, idx) => {
-            const spreadAngle = fireAngle + (idx === 0 ? -0.04 : 0.04);
-            state.addProjectile({
-              id: `p_player_${Date.now()}_${Math.random()}`,
-              owner: 'PLAYER',
-              type: 'LASER',
-              x: newX + Math.cos(fireAngle) * 16 + Math.cos(perpAngle) * off,
-              y: newY + Math.sin(fireAngle) * 16 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(spreadAngle) * (baseSpeed + 20),
-              vy: vy + Math.sin(spreadAngle) * (baseSpeed + 20),
-              damage: dmgPerBolt,
-              lifetime: 1.8,
-              color: '#C084FC',
-              radius: 2.2,
-            });
-          });
-        } else if (weaponLvl === 4) {
-          // MK-4: Quad Crimson Antimatter Cannons
-          const dmgPerBolt = weaponDamage * 0.36;
-          [-18, -7, 7, 18].forEach((off) => {
-            state.addProjectile({
-              id: `p_player_${Date.now()}_${Math.random()}`,
-              owner: 'PLAYER',
-              type: 'LASER',
-              x: newX + Math.cos(fireAngle) * 16 + Math.cos(perpAngle) * off,
-              y: newY + Math.sin(fireAngle) * 16 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle) * (baseSpeed + 50),
-              vy: vy + Math.sin(fireAngle) * (baseSpeed + 50),
-              damage: dmgPerBolt,
-              lifetime: 1.9,
-              color: '#FF3366',
-              radius: 2.8,
-            });
-          });
-        } else if (weaponLvl === 5) {
-          // MK-5: Overcharged Golden Solar Lance
-          const dmgPerBolt = weaponDamage * 0.50;
-          state.addProjectile({
-            id: `p_player_${Date.now()}_${Math.random()}`,
-            owner: 'PLAYER',
-            type: 'LASER',
-            x: newX + Math.cos(fireAngle) * 26,
-            y: newY + Math.sin(fireAngle) * 26,
-            vx: vx + Math.cos(fireAngle) * (baseSpeed + 90),
-            vy: vy + Math.sin(fireAngle) * (baseSpeed + 90),
-            damage: dmgPerBolt * 1.35,
             lifetime: 2.0,
-            color: '#FFDD00',
-            radius: 3.6,
+            color: palette.color,
+            radius: baseRadius + 0.8,
           });
-          [-16, 16].forEach((off) => {
+          // Dual Wing Bolts
+          [-14, 14].forEach((off, idx) => {
+            const spreadAngle = fireAngle + (idx === 0 ? -0.035 : 0.035);
             state.addProjectile({
-              id: `p_player_${Date.now()}_${Math.random()}`,
+              id: `p_player_${Date.now()}_${idx + 1}_${Math.random()}`,
               owner: 'PLAYER',
               type: 'LASER',
-              x: newX + Math.cos(fireAngle) * 18 + Math.cos(perpAngle) * off,
-              y: newY + Math.sin(fireAngle) * 18 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle) * (baseSpeed + 40),
-              vy: vy + Math.sin(fireAngle) * (baseSpeed + 40),
-              damage: dmgPerBolt * 0.85,
-              lifetime: 2.0,
-              color: '#FFDD00',
-              radius: 2.6,
-            });
-          });
-        } else if (weaponLvl === 6) {
-          // MK-6: Tachyon Emerald Disintegrator Array (5 High-Speed Needles)
-          const dmgPerBolt = weaponDamage * 0.32;
-          state.addProjectile({
-            id: `p_player_${Date.now()}_${Math.random()}`,
-            owner: 'PLAYER',
-            type: 'LASER',
-            x: newX + Math.cos(fireAngle) * 28,
-            y: newY + Math.sin(fireAngle) * 28,
-            vx: vx + Math.cos(fireAngle) * (baseSpeed + 130),
-            vy: vy + Math.sin(fireAngle) * (baseSpeed + 130),
-            damage: dmgPerBolt * 1.4,
-            lifetime: 2.1,
-            color: '#10B981',
-            radius: 3.0,
-          });
-          [-22, -11, 11, 22].forEach((off, idx) => {
-            const spread = (idx === 0 || idx === 3 ? (idx < 2 ? -0.05 : 0.05) : 0);
-            state.addProjectile({
-              id: `p_player_${Date.now()}_${Math.random()}`,
-              owner: 'PLAYER',
-              type: 'LASER',
-              x: newX + Math.cos(fireAngle) * 18 + Math.cos(perpAngle) * off,
-              y: newY + Math.sin(fireAngle) * 18 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle + spread) * (baseSpeed + 80),
-              vy: vy + Math.sin(fireAngle + spread) * (baseSpeed + 80),
+              x: newX + Math.cos(fireAngle) * 16 + Math.cos(perpAngle) * off,
+              y: newY + Math.sin(fireAngle) * 16 + Math.sin(perpAngle) * off,
+              vx: vx + Math.cos(spreadAngle) * baseSpeed,
+              vy: vy + Math.sin(spreadAngle) * baseSpeed,
               damage: dmgPerBolt,
               lifetime: 2.0,
-              color: '#10B981',
-              radius: 2.4,
+              color: palette.color,
+              radius: baseRadius + 0.3,
             });
           });
-        } else if (weaponLvl === 7) {
-          // MK-7: Quantum Singularity Salvo (6 Neon-Pink Quantum Beams)
-          const dmgPerBolt = weaponDamage * 0.30;
-          [-24, -14, -5, 5, 14, 24].forEach((off, idx) => {
-            const spread = (idx - 2.5) * 0.025;
-            state.addProjectile({
-              id: `p_player_${Date.now()}_${Math.random()}`,
-              owner: 'PLAYER',
-              type: 'LASER',
-              x: newX + Math.cos(fireAngle) * 20 + Math.cos(perpAngle) * off,
-              y: newY + Math.sin(fireAngle) * 20 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle + spread) * (baseSpeed + 110),
-              vy: vy + Math.sin(fireAngle + spread) * (baseSpeed + 110),
-              damage: dmgPerBolt,
-              lifetime: 2.2,
-              color: '#EC4899',
-              radius: 3.0,
-            });
-          });
-        } else if (weaponLvl === 8) {
-          // MK-8: Apex Hyper-Nova Battery (7 Supreme Violet-Plasma Heavy Lances)
-          const dmgPerBolt = weaponDamage * 0.32;
-          [-7, 7].forEach((off) => {
-            state.addProjectile({
-              id: `p_player_${Date.now()}_${Math.random()}`,
-              owner: 'PLAYER',
-              type: 'LASER',
-              x: newX + Math.cos(fireAngle) * 32 + Math.cos(perpAngle) * off,
-              y: newY + Math.sin(fireAngle) * 32 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle) * (baseSpeed + 150),
-              vy: vy + Math.sin(fireAngle) * (baseSpeed + 150),
-              damage: dmgPerBolt * 1.45,
-              lifetime: 2.3,
-              color: '#A855F7',
-              radius: 3.8,
-            });
-          });
-          [-28, -18, 0, 18, 28].forEach((off, idx) => {
-            const spread = (idx - 2) * 0.035;
-            state.addProjectile({
-              id: `p_player_${Date.now()}_${Math.random()}`,
-              owner: 'PLAYER',
-              type: 'LASER',
-              x: newX + Math.cos(fireAngle) * 22 + Math.cos(perpAngle) * off,
-              y: newY + Math.sin(fireAngle) * 22 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle + spread) * (baseSpeed + 90),
-              vy: vy + Math.sin(fireAngle + spread) * (baseSpeed + 90),
-              damage: dmgPerBolt,
-              lifetime: 2.2,
-              color: '#A855F7',
-              radius: 3.2,
-            });
-          });
-        } else if (weaponLvl <= 14) {
-          // MK-9 to MK-14: Hellfire Plasma Incinerators (Hellfire Orange Salvo)
-          const boltCount = Math.min(8, 6 + (weaponLvl - 9));
-          const dmgPerBolt = weaponDamage / boltCount;
-          for (let i = 0; i < boltCount; i++) {
-            const off = (i - (boltCount - 1) / 2) * 9;
-            const spread = (i - (boltCount - 1) / 2) * 0.025;
-            state.addProjectile({
-              id: `p_player_${Date.now()}_${i}_${Math.random()}`,
-              owner: 'PLAYER',
-              type: 'LASER',
-              x: newX + Math.cos(fireAngle) * 26 + Math.cos(perpAngle) * off,
-              y: newY + Math.sin(fireAngle) * 26 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle + spread) * (baseSpeed + 130),
-              vy: vy + Math.sin(fireAngle + spread) * (baseSpeed + 130),
-              damage: dmgPerBolt * 1.1,
-              lifetime: 2.3,
-              color: '#F97316',
-              radius: 3.6,
-            });
-          }
-        } else if (weaponLvl <= 20) {
-          // MK-15 to MK-20: Prismatic Diamond Beam Lances (White/Cyan Hypersonic Beams)
-          const boltCount = 8;
-          const dmgPerBolt = weaponDamage / boltCount;
-          for (let i = 0; i < boltCount; i++) {
-            const off = (i - 3.5) * 8;
-            const spread = (i - 3.5) * 0.02;
-            state.addProjectile({
-              id: `p_player_${Date.now()}_${i}_${Math.random()}`,
-              owner: 'PLAYER',
-              type: 'LASER',
-              x: newX + Math.cos(fireAngle) * 28 + Math.cos(perpAngle) * off,
-              y: newY + Math.sin(fireAngle) * 28 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle + spread) * (baseSpeed + 180),
-              vy: vy + Math.sin(fireAngle + spread) * (baseSpeed + 180),
-              damage: dmgPerBolt * 1.15,
-              lifetime: 2.4,
-              color: '#FFFFFF',
-              radius: 3.2,
-            });
-          }
-        } else if (weaponLvl <= 28) {
-          // MK-21 to MK-28: Dark Matter Void Singularity Cannons (Deep Indigo Heavy Bolts)
-          const boltCount = Math.min(10, 8 + Math.floor((weaponLvl - 21) / 3));
-          const dmgPerBolt = weaponDamage / boltCount;
-          for (let i = 0; i < boltCount; i++) {
-            const off = (i - (boltCount - 1) / 2) * 10;
-            const spread = (i - (boltCount - 1) / 2) * 0.03;
-            state.addProjectile({
-              id: `p_player_${Date.now()}_${i}_${Math.random()}`,
-              owner: 'PLAYER',
-              type: 'LASER',
-              x: newX + Math.cos(fireAngle) * 30 + Math.cos(perpAngle) * off,
-              y: newY + Math.sin(fireAngle) * 30 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle + spread) * (baseSpeed + 160),
-              vy: vy + Math.sin(fireAngle + spread) * (baseSpeed + 160),
-              damage: dmgPerBolt * 1.2,
-              lifetime: 2.4,
-              color: '#6366F1',
-              radius: 4.2,
-            });
-          }
-        } else if (weaponLvl <= 36) {
-          // MK-29 to MK-36: Chrono-Teal Phased Disintegrators (Chrono Teal Phased Barrage)
-          const boltCount = 10;
-          const dmgPerBolt = weaponDamage / boltCount;
-          for (let i = 0; i < boltCount; i++) {
-            const off = (i - 4.5) * 9;
-            const spread = (i - 4.5) * 0.024;
-            state.addProjectile({
-              id: `p_player_${Date.now()}_${i}_${Math.random()}`,
-              owner: 'PLAYER',
-              type: 'LASER',
-              x: newX + Math.cos(fireAngle) * 32 + Math.cos(perpAngle) * off,
-              y: newY + Math.sin(fireAngle) * 32 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle + spread) * (baseSpeed + 200),
-              vy: vy + Math.sin(fireAngle + spread) * (baseSpeed + 200),
-              damage: dmgPerBolt * 1.25,
-              lifetime: 2.5,
-              color: '#06B6D4',
-              radius: 4.0,
-            });
-          }
-        } else if (weaponLvl <= 44) {
-          // MK-37 to MK-44: Blood Ruby Super-Cannons (Apex Ruby #E11D48 Heavy Super-Salvo)
-          const boltCount = Math.min(12, 10 + Math.floor((weaponLvl - 37) / 3));
-          const dmgPerBolt = weaponDamage / boltCount;
-          for (let i = 0; i < boltCount; i++) {
-            const off = (i - (boltCount - 1) / 2) * 9.5;
-            const spread = (i - (boltCount - 1) / 2) * 0.028;
-            state.addProjectile({
-              id: `p_player_${Date.now()}_${i}_${Math.random()}`,
-              owner: 'PLAYER',
-              type: 'LASER',
-              x: newX + Math.cos(fireAngle) * 34 + Math.cos(perpAngle) * off,
-              y: newY + Math.sin(fireAngle) * 34 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle + spread) * (baseSpeed + 220),
-              vy: vy + Math.sin(fireAngle + spread) * (baseSpeed + 220),
-              damage: dmgPerBolt * 1.3,
-              lifetime: 2.5,
-              color: '#E11D48',
-              radius: 4.8,
-            });
-          }
         } else {
-          // MK-45 to MK-50+: Celestial God-Lance Supernova Battery (Starlight Gold Supreme Heavy Lances)
-          const boltCount = 12;
-          const dmgPerBolt = weaponDamage / boltCount;
-          // Dual Core Lances
-          [-7, 7].forEach((off) => {
+          // Stage 3: Quad Heavy Battery [4x]
+          const dmgPerBolt = (weaponDamage / 4) * 1.15;
+          [-18, -6, 6, 18].forEach((off, idx) => {
+            const spreadAngle = fireAngle + (idx === 0 ? -0.04 : idx === 3 ? 0.04 : 0);
             state.addProjectile({
-              id: `p_player_${Date.now()}_${Math.random()}`,
+              id: `p_player_${Date.now()}_${idx}_${Math.random()}`,
               owner: 'PLAYER',
               type: 'LASER',
-              x: newX + Math.cos(fireAngle) * 38 + Math.cos(perpAngle) * off,
-              y: newY + Math.sin(fireAngle) * 38 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle) * (baseSpeed + 260),
-              vy: vy + Math.sin(fireAngle) * (baseSpeed + 260),
-              damage: dmgPerBolt * 2.0,
-              lifetime: 2.6,
-              color: '#FBBF24',
-              radius: 5.6,
+              x: newX + Math.cos(fireAngle) * 18 + Math.cos(perpAngle) * off,
+              y: newY + Math.sin(fireAngle) * 18 + Math.sin(perpAngle) * off,
+              vx: vx + Math.cos(spreadAngle) * (baseSpeed + 15),
+              vy: vy + Math.sin(spreadAngle) * (baseSpeed + 15),
+              damage: dmgPerBolt,
+              lifetime: 2.1,
+              color: palette.color,
+              radius: baseRadius + 0.5,
             });
           });
-          // 10 Outer Nova Lances
-          for (let i = 0; i < 10; i++) {
-            const off = (i - 4.5) * 11;
-            const spread = (i - 4.5) * 0.032;
-            state.addProjectile({
-              id: `p_player_${Date.now()}_${i}_${Math.random()}`,
-              owner: 'PLAYER',
-              type: 'LASER',
-              x: newX + Math.cos(fireAngle) * 28 + Math.cos(perpAngle) * off,
-              y: newY + Math.sin(fireAngle) * 28 + Math.sin(perpAngle) * off,
-              vx: vx + Math.cos(fireAngle + spread) * (baseSpeed + 210),
-              vy: vy + Math.sin(fireAngle + spread) * (baseSpeed + 210),
-              damage: dmgPerBolt * 1.15,
-              lifetime: 2.5,
-              color: '#FBBF24',
-              radius: 4.4,
-            });
-          }
         }
         SoundManager.playLaser(false);
       }
@@ -5268,7 +5031,9 @@ export class GameEngine {
 
     // Twin plasma gun barrels if upgraded
     if (weaponLvl >= 2) {
-      ctx.fillStyle = weaponLvl >= 8 ? '#A855F7' : weaponLvl >= 7 ? '#EC4899' : weaponLvl >= 6 ? '#34D399' : weaponLvl >= 5 ? '#FFDD00' : weaponLvl >= 4 ? '#FF3366' : weaponLvl >= 3 ? '#A855F7' : '#00F0FF';
+      const LASER_COLORS = ['#00F0FF', '#FBBF24', '#10B981', '#EF4444', '#A855F7', '#F8FAFC', '#06B6D4', '#6366F1', '#EC4899', '#F97316', '#FDE047', '#2DD4BF'];
+      const tierIdx = Math.floor((weaponLvl - 1) / 4);
+      ctx.fillStyle = LASER_COLORS[tierIdx % LASER_COLORS.length];
       ctx.fillRect(-2, -wingDist - 2, 8, 3);
       ctx.fillRect(-2, wingDist - 1, 8, 3);
     }

@@ -25,7 +25,7 @@ import {
 import { generateSector, generateClusterCell } from '../data/sectorGenerator';
 import { generateStationMarket, getStationMineralPrice } from '../data/economy';
 import { SoundManager } from '../audio/SoundManager';
-import { SHIP_CLASSES, getShipClass, getEscortClass, getMaxEscortsForTier } from '../data/shipClasses';
+import { SHIP_CLASSES, getShipClass, getEscortClass, getMaxEscortsForTier, getMaxTorpedoesForTier } from '../data/shipClasses';
 
 export const getDifficultyMultipliers = (difficulty: GameDifficulty = 'EASY') => {
   switch (difficulty) {
@@ -277,7 +277,7 @@ export function createScaledEnemy(
     }
     // Estimate player tier and weapon level from power
     playerTier = Math.max(1, Math.min(100, Math.round(playerPower / 50)));
-    weaponLevel = Math.max(1, Math.min(50, Math.round((playerPower % 100) / 25) + 1));
+    weaponLevel = Math.max(1, Math.round((playerPower % 100) / 25) + 1);
   } else {
     const ship = (typeof shipOrName === 'object' && shipOrName !== null ? shipOrName : {}) as ShipStats;
     playerPower = calculatePlayerPower(playerOrPower, ship);
@@ -377,11 +377,8 @@ export function createScaledEnemy(
   const enemyScale = Number((playerScale * scaleFactor).toFixed(2));
 
   // 2. Streamlined HP & Shield Scaling with Difficulty Modifier
-  // Calibrated volleys needed:
-  // - Yellow (-30% to -5%): 4.5 to 6.5 volleys
-  // - Purple (-5% to +5%): 7.5 to 10.0 volleys (~2.5s of focused dogfight)
-  // - Red (+5% to +15%): 12.0 to 16.5 volleys (toughest apex dreadnoughts)
-  const volleyMultiplier = weaponLevel >= 5 ? 1.79 : weaponLevel >= 4 ? 1.4 : weaponLevel >= 3 ? 1.35 : weaponLevel >= 2 ? 1.2 : 1.0;
+  const stage = (weaponLevel - 1) % 4;
+  const volleyMultiplier = stage === 3 ? 1.15 : stage === 2 ? 1.10 : stage === 1 ? 1.05 : 1.0;
   const expectedVolleyDmg = (45 + weaponPower * 12) * (1 + (weaponLevel - 1) * 0.25) * volleyMultiplier;
 
   let volleysNeeded = 6.0;
@@ -917,7 +914,7 @@ export const useGameStore = create<GameState & GameActions>()(
           const hasTorpedoes = !!ship.hasTorpedoLauncher;
           const maxTorps = Math.max(
             ship.maxTorpedoes || 5,
-            currentTier >= 14 ? 25 : currentTier >= 10 ? 15 : 10
+            getMaxTorpedoesForTier(currentTier)
           );
           const currentTorps = hasTorpedoes ? Math.max(ship.torpedoes || 0, 5) : 0;
           const hasTurrets = !!ship.hasAutoTurrets;
@@ -1411,7 +1408,6 @@ export const useGameStore = create<GameState & GameActions>()(
       upgradeWeapon: () => {
         const { ship, player, world, mode, completedMissionsCount, unlockedStoryChapterIds } = get();
         const currentLvl = ship.weaponLevel || 1;
-        if (currentLvl >= 50) return false;
         const cost = Math.round(550 * Math.pow(1.15, currentLvl - 1));
         if (player.credits < cost) return false;
 
@@ -1515,33 +1511,15 @@ export const useGameStore = create<GameState & GameActions>()(
 
         SoundManager.playCash();
         const newTier = currentTier + 1;
+        const newMaxTorps = getMaxTorpedoesForTier(newTier);
         const upgradedShip: Partial<ShipStats> = {
           shipTier: newTier,
           maxEscorts: getMaxEscortsForTier(newTier),
+          maxTorpedoes: newMaxTorps,
         };
 
-        // Progressive ammo capacities across tiers (does NOT auto-grant weapons for free)
-        if (newTier >= 2) {
-          upgradedShip.maxTorpedoes = Math.max(ship.maxTorpedoes || 5, 10);
-        }
-        if (newTier >= 10) {
-          upgradedShip.maxTorpedoes = Math.max(ship.maxTorpedoes || 10, 15);
-        }
         if (newTier >= 14) {
-          upgradedShip.maxTorpedoes = Math.max(ship.maxTorpedoes || 15, 25);
           upgradedShip.maxEmpCooldown = 5;
-        }
-        if (newTier >= 16) {
-          upgradedShip.maxTorpedoes = Math.max(ship.maxTorpedoes || 25, 30);
-        }
-        if (newTier >= 17) {
-          upgradedShip.maxTorpedoes = Math.max(ship.maxTorpedoes || 30, 35);
-        }
-        if (newTier >= 19) {
-          upgradedShip.maxTorpedoes = Math.max(ship.maxTorpedoes || 35, 40);
-        }
-        if (newTier >= 22) {
-          upgradedShip.maxTorpedoes = 50;
         }
 
         const updatedPlayer = {
@@ -1602,14 +1580,17 @@ export const useGameStore = create<GameState & GameActions>()(
         const cost = 750;
         if (player.credits < cost) return false;
 
+        const currentTier = ship.shipTier || 1;
+        const newMaxTorps = getMaxTorpedoesForTier(currentTier);
+
         SoundManager.playCash();
         set((state) => ({
           player: { ...state.player, credits: state.player.credits - cost },
           ship: {
             ...state.ship,
             hasTorpedoLauncher: true,
-            torpedoes: 5,
-            maxTorpedoes: Math.max(state.ship.maxTorpedoes || 5, 5),
+            torpedoes: newMaxTorps,
+            maxTorpedoes: newMaxTorps,
           },
         }));
         return true;

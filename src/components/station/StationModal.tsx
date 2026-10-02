@@ -85,23 +85,30 @@ export const StationModal: React.FC = () => {
   const weaponLvl = ship.weaponLevel || 1;
   const weaponCost = Math.round(550 * Math.pow(1.15, weaponLvl - 1));
 
-  // Determine multi-cannon title
+  // Determine multi-cannon title & color tier
+  const COLOR_TIER_NAMES = [
+    { name: 'Cyan Pulse', color: '#00F0FF' },
+    { name: 'Solar Gold', color: '#FBBF24' },
+    { name: 'Neon Emerald', color: '#10B981' },
+    { name: 'Crimson Plasma', color: '#EF4444' },
+    { name: 'Royal Violet', color: '#A855F7' },
+    { name: 'Diamond Hyper-Lance', color: '#F8FAFC' },
+    { name: 'Chrono-Teal Phased', color: '#06B6D4' },
+    { name: 'Indigo Singularity', color: '#6366F1' },
+    { name: 'Cyber Magenta', color: '#EC4899' },
+    { name: 'Solar Flare', color: '#F97316' },
+    { name: 'Celestial Nova', color: '#FDE047' },
+    { name: 'Void-Weaver', color: '#2DD4BF' },
+  ];
+
   const getWeaponTitle = (lvl: number) => {
-    if (lvl <= 8) {
-      const baseTitles = [
-        'Single Cyan Pulse [1x]',
-        'Twin Azure Cannons [2x]',
-        'Triple Violet Trident [3x]',
-        'Quad Crimson Antimatter [4x]',
-        'Overcharged Solar Lance [4x]',
-        'Tachyon Disintegrator [4x]',
-        'Quantum Singularity [4x]',
-        'Apex Hyper-Nova Battery [4x]',
-      ];
-      return baseTitles[lvl - 1] || 'Apex Laser Battery';
-    }
-    const cannonCount = Math.min(8, 2 + Math.floor((lvl - 9) / 6));
-    return `MK-${lvl} Multi-Battery [${cannonCount}x Cannons]`;
+    const tierIdx = Math.floor((lvl - 1) / 4);
+    const stage = (lvl - 1) % 4; // 0: 1x, 1: 2x, 2: 3x, 3: 4x
+    const tierInfo = COLOR_TIER_NAMES[tierIdx % COLOR_TIER_NAMES.length];
+    const cycle = Math.floor(tierIdx / COLOR_TIER_NAMES.length) + 1;
+    const stageNames = ['Single Lance [1x]', 'Twin Cannons [2x]', 'Triple Trident [3x]', 'Quad Battery [4x]'];
+    const prefix = cycle > 1 ? `${tierInfo.name} MK-${cycle}` : tierInfo.name;
+    return `${prefix} • ${stageNames[stage]}`;
   };
 
   const shieldLvl = ship.shieldLevel || 1;
@@ -120,7 +127,9 @@ export const StationModal: React.FC = () => {
   // Secondary weapons & drone states
   const torpUnlocked = weaponLvl >= 2 && shipTier >= 2;
   const torpNeeded = (ship.maxTorpedoes || 5) - (ship.torpedoes || 0);
-  const torpCost5 = Math.min(5, torpNeeded) * 45;
+  const torpBatchQty = Math.min(torpNeeded <= 5 ? torpNeeded : 10, torpNeeded);
+  const torpCostBatch = torpBatchQty * 45;
+  const torpCostAll = torpNeeded * 45;
   const empUnlocked = shieldLvl >= 3 && shipTier >= 4;
 
   const maxEscorts = ship.maxEscorts || 0;
@@ -787,10 +796,10 @@ export const StationModal: React.FC = () => {
                     </div>
                     <button
                       onClick={() => upgradeWeapon()}
-                      disabled={weaponLvl >= 50 || player.credits < weaponCost}
+                      disabled={player.credits < weaponCost}
                       className="px-3.5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer font-mono shrink-0"
                     >
-                      {weaponLvl >= 50 ? 'MAX' : `${weaponCost.toLocaleString()} CR`}
+                      {`${weaponCost.toLocaleString()} CR`}
                     </button>
                   </div>
 
@@ -872,13 +881,24 @@ export const StationModal: React.FC = () => {
                       </div>
                     </div>
                     {ship.hasTorpedoLauncher ? (
-                      <button
-                        onClick={() => buyTorpedoAmmo(5)}
-                        disabled={torpNeeded <= 0 || player.credits < torpCost5}
-                        className="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
-                      >
-                        {torpNeeded > 0 ? `+5 (${torpCost5} CR)` : 'Full'}
-                      </button>
+                      <div className="flex items-center space-x-1.5">
+                        {torpNeeded > 10 && (
+                          <button
+                            onClick={() => buyTorpedoAmmo(torpNeeded)}
+                            disabled={player.credits < torpCostAll}
+                            className="px-2.5 py-1.5 rounded-lg bg-amber-700/80 hover:bg-amber-600 text-white text-[11px] font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer font-mono"
+                          >
+                            Fill ({torpCostAll.toLocaleString()} CR)
+                          </button>
+                        )}
+                        <button
+                          onClick={() => buyTorpedoAmmo(torpBatchQty)}
+                          disabled={torpNeeded <= 0 || player.credits < torpCostBatch}
+                          className="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer font-mono"
+                        >
+                          {torpNeeded > 0 ? `+${torpBatchQty} (${torpCostBatch} CR)` : 'Full'}
+                        </button>
+                      </div>
                     ) : (
                       <button
                         onClick={() => buyTorpedoLauncher()}
