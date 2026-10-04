@@ -28,7 +28,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Kestrel Interceptor',
     category: 'SCOUT',
     cost: 1600,
-    cargoBonus: 15,
+    cargoBonus: 12,
     hullBonus: 30,
     fuelBonus: 25,
     description: 'Forward-swept gull-wing interceptor engineered for hyper-agile banking.',
@@ -38,7 +38,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Corsair Skiff',
     category: 'CORVETTE',
     cost: 2400,
-    cargoBonus: 20,
+    cargoBonus: 10,
     hullBonus: 40,
     fuelBonus: 30,
     description: 'Asymmetric outrigger raider equipped with reinforced port-side armor.',
@@ -48,7 +48,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Hammerhead Gunship',
     category: 'CORVETTE',
     cost: 3400,
-    cargoBonus: 25,
+    cargoBonus: 10,
     hullBonus: 50,
     fuelBonus: 35,
     description: 'Heavy armored T-crossbar hammerhead prow with reinforced frontal plating.',
@@ -59,7 +59,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Valkyrie Heavy Frigate',
     category: 'FRIGATE',
     cost: 4600,
-    cargoBonus: 30,
+    cargoBonus: 8,
     hullBonus: 60,
     fuelBonus: 40,
     description: 'Swept diamond multi-engine frigate built for deep-space escort operations.',
@@ -70,7 +70,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Spectre Stealth Blade',
     category: 'FRIGATE',
     cost: 6000,
-    cargoBonus: 30,
+    cargoBonus: 8,
     hullBonus: 70,
     fuelBonus: 45,
     description: 'Faceted hexagonal stealth hull with minimal radar cross-section.',
@@ -80,7 +80,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Centurion Catamaran',
     category: 'FRIGATE',
     cost: 7800,
-    cargoBonus: 35,
+    cargoBonus: 6,
     hullBonus: 80,
     fuelBonus: 50,
     description: 'Dual-hulled heavy gunboat with central command bridge and dual thrusters.',
@@ -91,7 +91,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Aegis Destroyer',
     category: 'CRUISER',
     cost: 10000,
-    cargoBonus: 40,
+    cargoBonus: 6,
     hullBonus: 95,
     fuelBonus: 55,
     description: 'Stepped wedge hull with reinforced prow decks and broadside battery mounts.',
@@ -102,7 +102,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Trident Battlecruiser',
     category: 'CRUISER',
     cost: 12800,
-    cargoBonus: 45,
+    cargoBonus: 6,
     hullBonus: 110,
     fuelBonus: 60,
     description: 'Triple-prow trident dreadnought with recessed torpedo missile launch tubes.',
@@ -113,7 +113,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Gorgon Assault Cruiser',
     category: 'CRUISER',
     cost: 16000,
-    cargoBonus: 50,
+    cargoBonus: 5,
     hullBonus: 130,
     fuelBonus: 70,
     description: 'Octagonal armored fortress hull with flared forward deflector shields.',
@@ -123,7 +123,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Phoenix Strike Cruiser',
     category: 'CRUISER',
     cost: 20000,
-    cargoBonus: 55,
+    cargoBonus: 5,
     hullBonus: 150,
     fuelBonus: 80,
     description: 'Predatory raptor-wing cruiser with triple heavy thruster cluster.',
@@ -134,7 +134,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Titan Heavy Battleship',
     category: 'BATTLESHIP',
     cost: 25000,
-    cargoBonus: 60,
+    cargoBonus: 5,
     hullBonus: 180,
     fuelBonus: 90,
     description: 'Massive wedge battleship with multiple reinforced composite armor decks.',
@@ -145,7 +145,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Obsidian Dreadnought',
     category: 'BATTLESHIP',
     cost: 32000,
-    cargoBonus: 70,
+    cargoBonus: 4,
     hullBonus: 210,
     fuelBonus: 100,
     description: 'Monolithic stepped obsidian dagger hull with glowing plasma channels.',
@@ -156,7 +156,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Leviathan Flagship',
     category: 'BATTLESHIP',
     cost: 40000,
-    cargoBonus: 80,
+    cargoBonus: 4,
     hullBonus: 250,
     fuelBonus: 120,
     description: 'Segmented capital flagship with command citadel and expansive cargo decks.',
@@ -166,7 +166,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Solar Apex Colossus',
     category: 'COLOSSUS',
     cost: 50000,
-    cargoBonus: 100,
+    cargoBonus: 4,
     hullBonus: 300,
     fuelBonus: 150,
     description: 'The pinnacle of naval engineering: dual ring resonance arrays and supreme firepower.',
@@ -177,7 +177,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Hyperion Fleet Carrier',
     category: 'CARRIER',
     cost: 65000,
-    cargoBonus: 120,
+    cargoBonus: 4,
     hullBonus: 360,
     fuelBonus: 180,
     description: 'Elongated capital carrier featuring dual angled runway flight decks, runway arrestor lights, and dedicated fighter launch bays.',
@@ -188,7 +188,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Archon Supercarrier',
     category: 'CARRIER',
     cost: 82000,
-    cargoBonus: 140,
+    cargoBonus: 3,
     hullBonus: 430,
     fuelBonus: 210,
     description: 'Massive elongated supercarrier with triple catapult flight runways, reinforced hangar bulwarks, and broadside defense arrays.',
@@ -199,7 +199,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Sovereign Dread-Carrier',
     category: 'CARRIER',
     cost: 105000,
-    cargoBonus: 165,
+    cargoBonus: 3,
     hullBonus: 520,
     fuelBonus: 250,
     description: 'Heavy elongated warship hybrid with armored ram prow, spinal torpedo magazine, and dual lateral hangar decks.',
@@ -210,7 +210,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Astral Leviathan Titan',
     category: 'COLOSSUS',
     cost: 135000,
-    cargoBonus: 190,
+    cargoBonus: 3,
     hullBonus: 620,
     fuelBonus: 300,
     description: 'Monolithic elongated star titan spanning kilometers, equipped with central spinal rail trenches and multi-squadron carrier bays.',
@@ -221,7 +221,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Chronos World-Engine',
     category: 'COLOSSUS',
     cost: 175000,
-    cargoBonus: 220,
+    cargoBonus: 3,
     hullBonus: 740,
     fuelBonus: 360,
     description: 'Elongated celestial ark flanked by quantum resonance rings, designed to command entire planetary fleets.',
@@ -232,7 +232,7 @@ const BASE_SHIP_CLASSES: ShipClassDefinition[] = [
     name: 'Ouroboros Infinity Flagship',
     category: 'COLOSSUS',
     cost: 230000,
-    cargoBonus: 260,
+    cargoBonus: 3,
     hullBonus: 900,
     fuelBonus: 450,
     description: 'The ultimate apex naval starship in known space. An elongated cosmic supercarrier commanding an unstoppable armada.',
@@ -262,7 +262,7 @@ function generateFullShipClassCatalog(): ShipClassDefinition[] {
 
     // Exponential but balanced credit cost curve
     const cost = Math.round(230000 * Math.pow(1.075, t - 22));
-    const cargoBonus = 260 + (t - 22) * 18;
+    const cargoBonus = 2;
     const hullBonus = 900 + (t - 22) * 75;
     const fuelBonus = 450 + (t - 22) * 35;
 
@@ -304,8 +304,18 @@ export function getShipClass(tier: number): ShipClassDefinition {
 
 export function getMaxTorpedoesForTier(tier: number): number {
   if (tier < 2) return 5;
-  // Starting at Tier 2 (base 5), +20% each tier compounded
-  return Math.max(5, Math.round(5 * Math.pow(1.20, tier - 2)));
+  // Starting at Tier 2 (base 5): fast early growth, then tapers off smoothly
+  // T2: 5, T3: 10 (+5), T4: 12 (+2), T5: 14 (+2), T6: 15 (+1), T10: 19, T20: 26, T50: 40, T100: 50
+  return Math.min(50, Math.round(5 + 5 * Math.sqrt(tier - 2)));
+}
+
+export function getBaseCargoForTier(tier: number): number {
+  let cargo = 30;
+  const maxT = Math.max(1, Math.min(SHIP_CLASSES.length, Math.round(tier)));
+  for (let t = 2; t <= maxT; t++) {
+    cargo += getShipClass(t).cargoBonus;
+  }
+  return cargo;
 }
 
 export function getMaxEscortsForTier(tier: number): number {

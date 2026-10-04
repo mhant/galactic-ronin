@@ -25,7 +25,7 @@ import {
 import { generateSector, generateClusterCell } from '../data/sectorGenerator';
 import { generateStationMarket, getStationMineralPrice } from '../data/economy';
 import { SoundManager } from '../audio/SoundManager';
-import { SHIP_CLASSES, getShipClass, getEscortClass, getMaxEscortsForTier, getMaxTorpedoesForTier } from '../data/shipClasses';
+import { SHIP_CLASSES, getShipClass, getEscortClass, getMaxEscortsForTier, getMaxTorpedoesForTier, getBaseCargoForTier } from '../data/shipClasses';
 
 export const getDifficultyMultipliers = (difficulty: GameDifficulty = 'EASY') => {
   switch (difficulty) {
@@ -692,6 +692,14 @@ export const useGameStore = create<GameState & GameActions>()(
         const healedHull = Math.max(saved.player.hull || 0, saved.player.maxHull || 100);
         const healedShield = Math.max(saved.ship.shield || 0, saved.ship.maxShield || 100);
 
+        const currentTier = saved.ship.shipTier || 1;
+        const newMaxTorps = getMaxTorpedoesForTier(currentTier);
+        const expectedBaseCargo = getBaseCargoForTier(currentTier);
+        const safeCargo = Math.max(
+          expectedBaseCargo,
+          Math.min(saved.player.cargoCapacity || 30, expectedBaseCargo + 100)
+        );
+
         set((state) => ({
           ...state,
           gameStatus: 'EXPLORING',
@@ -709,11 +717,14 @@ export const useGameStore = create<GameState & GameActions>()(
             ...saved.player,
             hull: healedHull,
             fuel: Math.max(saved.player.fuel || 0, 50),
+            cargoCapacity: safeCargo,
           },
           ship: {
             ...saved.ship,
             shield: healedShield,
-            maxEscorts: getMaxEscortsForTier(saved.ship.shipTier || 1),
+            maxEscorts: getMaxEscortsForTier(currentTier),
+            maxTorpedoes: newMaxTorps,
+            torpedoes: Math.min(saved.ship.torpedoes || 0, newMaxTorps),
             escorts: saved.ship.escorts || [],
           },
           world: {
@@ -912,11 +923,13 @@ export const useGameStore = create<GameState & GameActions>()(
           const currentTier = ship.shipTier || 1;
 
           const hasTorpedoes = !!ship.hasTorpedoLauncher;
-          const maxTorps = Math.max(
-            ship.maxTorpedoes || 5,
-            getMaxTorpedoesForTier(currentTier)
+          const maxTorps = getMaxTorpedoesForTier(currentTier);
+          const currentTorps = hasTorpedoes ? Math.min(Math.max(ship.torpedoes || 0, 5), maxTorps) : 0;
+          const expectedBaseCargo = getBaseCargoForTier(currentTier);
+          const safeCargo = Math.max(
+            expectedBaseCargo,
+            Math.min(player.cargoCapacity || 30, expectedBaseCargo + 100)
           );
-          const currentTorps = hasTorpedoes ? Math.max(ship.torpedoes || 0, 5) : 0;
           const hasTurrets = !!ship.hasAutoTurrets;
           const hasEmp = !!ship.hasEmpGenerator;
 
@@ -938,6 +951,7 @@ export const useGameStore = create<GameState & GameActions>()(
               ...state.player,
               hull: healedHull,
               fuel: Math.max(state.player.fuel || 0, 50),
+              cargoCapacity: safeCargo,
             },
             ship: {
               ...state.ship,
