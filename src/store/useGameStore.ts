@@ -697,7 +697,7 @@ export const useGameStore = create<GameState & GameActions>()(
         const expectedBaseCargo = getBaseCargoForTier(currentTier);
         const safeCargo = Math.max(
           expectedBaseCargo,
-          Math.min(saved.player.cargoCapacity || 30, expectedBaseCargo + 100)
+          Math.min(saved.player.cargoCapacity || 30, expectedBaseCargo + 500)
         );
 
         set((state) => ({
@@ -928,7 +928,7 @@ export const useGameStore = create<GameState & GameActions>()(
           const expectedBaseCargo = getBaseCargoForTier(currentTier);
           const safeCargo = Math.max(
             expectedBaseCargo,
-            Math.min(player.cargoCapacity || 30, expectedBaseCargo + 100)
+            Math.min(player.cargoCapacity || 30, expectedBaseCargo + 500)
           );
           const hasTurrets = !!ship.hasAutoTurrets;
           const hasEmp = !!ship.hasEmpGenerator;
