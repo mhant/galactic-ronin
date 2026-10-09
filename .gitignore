@@ -2,6 +2,16 @@ node_modules
 dist
 dist-ssr
 *.local
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.pfx
+
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -12,3 +22,4 @@ dist-ssr
 *.sln
 *.sw?
 scratch_tests/
+
